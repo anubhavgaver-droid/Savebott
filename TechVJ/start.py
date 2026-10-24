@@ -150,24 +150,32 @@ async def save(client: Client, message: Message):
                 bot_username = bot_and_params[0].strip("/")
                 payload = bot_and_params[1]
 
-                status_msg = await message.reply_text("**Fetching files and checking sequence...**")
+                status_msg = await message.reply_text("**Fetching new files precisely...**")
                 
-                # Send start command to target bot
+                # Step 1: Command bhejne se pehle latest message ID note karo taaki purane messages na aayein
+                last_msg_id = 0
+                async for m in acc.get_chat_history(bot_username, limit=1):
+                    last_msg_id = m.id
+                    break
+
+                # Step 2: Target bot ko start command bhejo
                 await acc.send_message(bot_username, f"/start {payload}")
-                await asyncio.sleep(4) # Thoda wait karein taaki bot saari files bhej de
+                await asyncio.sleep(5) # Bot ko files bhejne ke liye 5 second ka wait
                 
-                # Collect all media messages and prevent duplicates
+                # Step 3: Sirf wohi messages uthao jo command bhejne ke baad aaye hain (id > last_msg_id)
                 media_msgs = []
                 seen_ids = set()
                 
-                async for msg in acc.get_chat_history(bot_username, limit=50):
+                async for msg in acc.get_chat_history(bot_username, limit=40):
+                    if msg.id <= last_msg_id:
+                        break # Purane messages aate hi loop band kar do
                     if msg.id in seen_ids:
                         continue
                     if msg.media:
                         seen_ids.add(msg.id)
                         media_msgs.append(msg)
                 
-                # Sort messages by message ID in ascending order (Proper Sequence)
+                # Step 4: Sahi sequence (ascending order) mein sort karo
                 media_msgs.sort(key=lambda x: x.id)
                 
                 total_files = len(media_msgs)
@@ -179,7 +187,7 @@ async def save(client: Client, message: Message):
                     batch_temp.IS_BATCH[message.from_user.id] = True
                     return
 
-                await status_msg.edit_text(f"**Found: {total_files}\nStarting batch delivery in proper sequence...**")
+                await status_msg.edit_text(f"**Found: {total_files}\nStarting batch delivery in correct sequence...**")
                 
                 for msg in media_msgs:
                     if batch_temp.IS_BATCH.get(message.from_user.id): break
@@ -273,7 +281,7 @@ async def save(client: Client, message: Message):
 # handle private
 async def handle_private(client: Client, acc, message: Message, chatid: int, msgid: int):
     msg: Message = await acc.get_messages(chatid, msgid)
-    if msg.empty: return 
+    if msg.empty: return[span_2](start_span)[span_2](end_span)
     msg_type = get_message_type(msg)
     if not msg_type: return 
     if CHANNEL_ID:
