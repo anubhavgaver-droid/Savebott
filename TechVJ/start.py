@@ -247,6 +247,7 @@ async def save(client: Client, message: Message):
             batch_temp.IS_BATCH[message.from_user.id] = True
             return
 
+        # Handling Public / Private Channel Batch Links (First Link to Last Link, e.g., 100-150)
         datas = message.text.split("/")
         temp = datas[-1].replace("?single","").split("-")
         fromID = int(temp[0].strip())
@@ -424,7 +425,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             ph_path = None
 
         duration = getattr(msg.audio, "duration", 0)
-        performer = "kcxry"  # Unknown artist ki jagah ab kcxry set ho gaya hai
+        performer = "kcxry"  # Unknown artist ki jagah kcxry set kar diya gaya hai
         title = getattr(msg.audio, "title", msg.document.file_name if msg.document else "Audio File")
 
         try:
