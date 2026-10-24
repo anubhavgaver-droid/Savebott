@@ -56,11 +56,21 @@ def progress(current, total, message, type):
         fileup.write(f"{current * 100 / total:.1f}%")
 
 
-# start command
-@Client.on_message(filters.command(["start"]))
+# start command with Payload Support
+@Client.on_message(filters.command(["start", "dlbot"]))
 async def send_start(client: Client, message: Message):
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
+    
+    # Check if a payload/link is passed with the command (e.g., /start https://t.me/... or /dlbot https://t.me/...)
+    if len(message.command) > 1:
+        extracted_link = message.command[1]
+        # Clean up URL if encoded or formatted with ?start=
+        if "t.me/" in extracted_link:
+            # Create a mock message object with the link text to trigger the save logic directly
+            message.text = extracted_link
+            return await save(client, message)
+
     buttons = [[
         InlineKeyboardButton("❣️ Developer", url = "https://t.me/kingvj01")
     ],[
@@ -358,8 +368,3 @@ def get_message_type(msg: pyrogram.types.messages_and_media.message.Message):
         return "Text"
     except:
         pass
-        
-
-# Don't Remove Credit @VJ_Bots
-# Subscribe YouTube Channel For Amazing Bot @Tech_VJ
-# Ask Doubt on telegram @KingVJ01
