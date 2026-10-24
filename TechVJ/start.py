@@ -56,18 +56,15 @@ def progress(current, total, message, type):
         fileup.write(f"{current * 100 / total:.1f}%")
 
 
-# start command with Payload Support
+# start command with Payload & dlbot Support
 @Client.on_message(filters.command(["start", "dlbot"]))
 async def send_start(client: Client, message: Message):
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
     
-    # Check if a payload/link is passed with the command (e.g., /start https://t.me/... or /dlbot https://t.me/...)
     if len(message.command) > 1:
         extracted_link = message.command[1]
-        # Clean up URL if encoded or formatted with ?start=
         if "t.me/" in extracted_link:
-            # Create a mock message object with the link text to trigger the save logic directly
             message.text = extracted_link
             return await save(client, message)
 
@@ -75,7 +72,7 @@ async def send_start(client: Client, message: Message):
         InlineKeyboardButton("❣️ Developer", url = "https://t.me/kingvj01")
     ],[
         InlineKeyboardButton('🔍 sᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/vj_bot_disscussion'),
-        InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/vj_bots')
+        InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴེल', url='https://t.me/vj_bots')
     ]]
     reply_markup = InlineKeyboardMarkup(buttons)
     await client.send_message(
@@ -127,6 +124,55 @@ async def save(client: Client, message: Message):
     if "https://t.me/" in message.text:
         if batch_temp.IS_BATCH.get(message.from_user.id) == False:
             return await message.reply_text("**One Task Is Already Processing. Wait For Complete It. If You Want To Cancel This Task Then Use - /cancel**")
+        
+        # Handling Bot Start Parameter Links (e.g., https://t.me/BotName?start=payload)
+        if "?start=" in message.text:
+            if LOGIN_SYSTEM == True:
+                user_data = await db.get_session(message.from_user.id)
+                if user_data is None:
+                    await message.reply("**For Downloading Restricted Content You Have To /login First.**")
+                    return
+                api_id = int(await db.get_api_id(message.from_user.id))
+                api_hash = await db.get_api_hash(message.from_user.id)
+                try:
+                    acc = Client("saverestricted", session_string=user_data, api_hash=api_hash, api_id=api_id)
+                    await acc.connect()
+                except:
+                    return await message.reply("**Your Login Session Expired. So /logout First Then Login Again By - /login**")
+            else:
+                acc = TechVJUser
+
+            batch_temp.IS_BATCH[message.from_user.id] = False
+            
+            try:
+                parts = message.text.split("t.me/")
+                bot_and_params = parts[1].split("?start=")
+                bot_username = bot_and_params[0].strip("/")
+                payload = bot_and_params[1]
+
+                status_msg = await message.reply_text("**Fetching files via background session...**")
+                
+                await acc.send_message(bot_username, f"/start {payload}")
+                await asyncio.sleep(3)
+                
+                async for msg in acc.get_chat_history(bot_username, limit=15):
+                    if batch_temp.IS_BATCH.get(message.from_user.id): break
+                    if msg.media:
+                        await handle_private(client, acc, message, bot_username, msg.id)
+                        await asyncio.sleep(WAITING_TIME)
+                
+                await status_msg.delete()
+            except Exception as e:
+                await message.reply_text(f"Error processing start link: {e}")
+            
+            if LOGIN_SYSTEM == True:
+                try:
+                    await acc.disconnect()
+                except:
+                    pass
+            batch_temp.IS_BATCH[message.from_user.id] = True
+            return
+
         datas = message.text.split("/")
         temp = datas[-1].replace("?single","").split("-")
         fromID = int(temp[0].strip())
@@ -157,7 +203,6 @@ async def save(client: Client, message: Message):
         for msgid in range(fromID, toID+1):
             if batch_temp.IS_BATCH.get(message.from_user.id): break
             
-            # private
             if "https://t.me/c/" in message.text:
                 chatid = int("-100" + datas[4])
                 try:
@@ -166,7 +211,6 @@ async def save(client: Client, message: Message):
                     if ERROR_MESSAGE == True:
                         await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
     
-            # bot
             elif "https://t.me/b/" in message.text:
                 username = datas[4]
                 try:
@@ -175,7 +219,6 @@ async def save(client: Client, message: Message):
                     if ERROR_MESSAGE == True:
                         await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
             
-            # public
             else:
                 username = datas[3]
 
@@ -193,7 +236,6 @@ async def save(client: Client, message: Message):
                         if ERROR_MESSAGE == True:
                             await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
 
-            # wait time
             await asyncio.sleep(WAITING_TIME)
         if LOGIN_SYSTEM == True:
             try:
