@@ -145,38 +145,79 @@ async def save(client: Client, message: Message):
             batch_temp.IS_BATCH[message.from_user.id] = False
             
             try:
+                # Step 1: User se pucho ki total kitni files hain
+                try:
+                    count_msg = await client.ask(
+                        chat_id=message.chat.id,
+                        text="<b>Is link mein total kitni files hain? Kripya sirf number bhejiye (jaise: 20):\n\n(Process cancel karne ke liye /cancel bhejein)</b>",
+                        filters=filters.text,
+                        timeout=60
+                    )
+                    if count_msg.text == "/cancel":
+                        await count_msg.reply("<b>Process cancelled !</b>")
+                        if LOGIN_SYSTEM == True:
+                            try: await acc.disconnect()
+                            except: pass
+                        batch_temp.IS_BATCH[message.from_user.id] = True
+                        return
+                    total_expected = int(count_msg.text.strip())
+                except ValueError:
+                    await message.reply("**Invalid number provided. Please send link again.**")
+                    if LOGIN_SYSTEM == True:
+                        try: await acc.disconnect()
+                        except: pass
+                    batch_temp.IS_BATCH[message.from_user.id] = True
+                    return
+                except asyncio.exceptions.TimeoutError:
+                    await message.reply("**Time expired. Process cancelled.**")
+                    if LOGIN_SYSTEM == True:
+                        try: await acc.disconnect()
+                        except: pass
+                    batch_temp.IS_BATCH[message.from_user.id] = True
+                    return
+
                 parts = message.text.split("t.me/")
                 bot_and_params = parts[1].split("?start=")
                 bot_username = bot_and_params[0].strip("/")
                 payload = bot_and_params[1]
 
-                status_msg = await message.reply_text("**Fetching new files precisely...**")
+                status_msg = await message.reply_text(f"**Fetching {total_expected} files... Please wait.**")
                 
-                # Step 1: Command bhejne se pehle latest message ID note karo taaki purane messages na aayein
+                # Step 2: Command bhejne se pehle last message ID note karo
                 last_msg_id = 0
                 async for m in acc.get_chat_history(bot_username, limit=1):
                     last_msg_id = m.id
                     break
 
-                # Step 2: Target bot ko start command bhejo
+                # Step 3: Target bot ko start command bhejo
                 await acc.send_message(bot_username, f"/start {payload}")
-                await asyncio.sleep(5) # Bot ko files bhejne ke liye 5 second ka wait
                 
-                # Step 3: Sirf wohi messages uthao jo command bhejne ke baad aaye hain (id > last_msg_id)
+                # Step 4: Files collect karo jab tak expected count poora na ho jaye
                 media_msgs = []
                 seen_ids = set()
                 
-                async for msg in acc.get_chat_history(bot_username, limit=40):
-                    if msg.id <= last_msg_id:
-                        break # Purane messages aate hi loop band kar do
-                    if msg.id in seen_ids:
-                        continue
-                    if msg.media:
-                        seen_ids.add(msg.id)
-                        media_msgs.append(msg)
+                for _ in range(40): # max attempts
+                    await asyncio.sleep(2)
+                    async for msg in acc.get_chat_history(bot_username, limit=50):
+                        if msg.id <= last_msg_id:
+                            break
+                        if msg.id in seen_ids:
+                            continue
+                        if msg.media:
+                            seen_ids.add(msg.id)
+                            media_msgs.append(msg)
+                    
+                    try:
+                        await status_msg.edit_text(f"**Collected: {len(media_msgs)} / {total_expected} files...**")
+                    except:
+                        pass
+                        
+                    if len(media_msgs) >= total_expected:
+                        break
                 
-                # Step 4: Sahi sequence (ascending order) mein sort karo
+                # Step 5: Sahi sequence (ascending order) mein sort karo aur extra ho toh trim karo
                 media_msgs.sort(key=lambda x: x.id)
+                media_msgs = media_msgs[:total_expected]
                 
                 total_files = len(media_msgs)
                 if total_files == 0:
@@ -187,11 +228,10 @@ async def save(client: Client, message: Message):
                     batch_temp.IS_BATCH[message.from_user.id] = True
                     return
 
-                await status_msg.edit_text(f"**Found: {total_files}\nStarting batch delivery in correct sequence...**")
+                await status_msg.edit_text(f"**Total Found: {total_files}\nStarting proper sequence delivery...**")
                 
                 for msg in media_msgs:
-                    if batch_temp.IS_BATCH.get(message.from_user.id): break
-                    await handle_private(client, acc, message, bot_username, msg.id)
+                    if batch_temp.IS_BATCH.get(message.from_user.id): break[span_0](start_span)[span_0](end_span) await handle_private(client, acc, message, bot_username, msg.id)
                     await asyncio.sleep(WAITING_TIME)
                 
                 await status_msg.delete()
@@ -281,7 +321,7 @@ async def save(client: Client, message: Message):
 # handle private
 async def handle_private(client: Client, acc, message: Message, chatid: int, msgid: int):
     msg: Message = await acc.get_messages(chatid, msgid)
-    if msg.empty: return[span_2](start_span)[span_2](end_span)
+    if msg.empty: return[span_1](start_span)[span_1](end_span)
     msg_type = get_message_type(msg)
     if not msg_type: return 
     if CHANNEL_ID:
@@ -376,7 +416,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         try:
             await client.send_audio(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])   
         except Exception as e:
-            if ERROR_MESSAGE == True:
+            if ERROR_Message == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
         
         if ph_path != None: os.remove(ph_path)
