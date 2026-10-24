@@ -322,7 +322,7 @@ async def save(client: Client, message: Message):
 # handle private
 async def handle_private(client: Client, acc, message: Message, chatid: int, msgid: int):
     msg: Message = await acc.get_messages(chatid, msgid)
-    if msg.empty: return
+    if msg.empty: return 
     msg_type = get_message_type(msg)
     if not msg_type: return 
     if CHANNEL_ID:
@@ -403,7 +403,16 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
 
     elif "Voice" == msg_type:
         try:
-            await client.send_voice(chat, file, caption=caption, caption_entities=msg.caption_entities, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
+            await client.send_voice(
+                chat, file, 
+                duration=msg.voice.duration, 
+                caption=caption, 
+                caption_entities=msg.caption_entities, 
+                reply_to_message_id=message.id, 
+                parse_mode=enums.ParseMode.HTML, 
+                progress=progress, 
+                progress_args=[message,"up"]
+            )
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
@@ -414,8 +423,23 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         except:
             ph_path = None
 
+        duration = getattr(msg.audio, "duration", 0)
+        performer = "kcxry"  # Unknown artist ki jagah ab kcxry set ho gaya hai
+        title = getattr(msg.audio, "title", msg.document.file_name if msg.document else "Audio File")
+
         try:
-            await client.send_audio(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])   
+            await client.send_audio(
+                chat, file, 
+                thumb=ph_path, 
+                caption=caption, 
+                duration=duration, 
+                performer=performer, 
+                title=title, 
+                reply_to_message_id=message.id, 
+                parse_mode=enums.ParseMode.HTML, 
+                progress=progress, 
+                progress_args=[message,"up"]
+            )   
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
