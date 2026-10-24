@@ -72,7 +72,7 @@ async def send_start(client: Client, message: Message):
         InlineKeyboardButton("❣️ Developer", url = "https://t.me/kingvj01")
     ],[
         InlineKeyboardButton('🔍 sᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/vj_bot_disscussion'),
-        InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴེल', url='https://t.me/vj_bots')
+        InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/vj_bots')
     ]]
     reply_markup = InlineKeyboardMarkup(buttons)
     await client.send_message(
@@ -150,16 +150,41 @@ async def save(client: Client, message: Message):
                 bot_username = bot_and_params[0].strip("/")
                 payload = bot_and_params[1]
 
-                status_msg = await message.reply_text("**Fetching files via background session...**")
+                status_msg = await message.reply_text("**Fetching files and checking sequence...**")
                 
+                # Send start command to target bot
                 await acc.send_message(bot_username, f"/start {payload}")
-                await asyncio.sleep(3)
+                await asyncio.sleep(4) # Thoda wait karein taaki bot saari files bhej de
                 
-                async for msg in acc.get_chat_history(bot_username, limit=15):
-                    if batch_temp.IS_BATCH.get(message.from_user.id): break
+                # Collect all media messages and prevent duplicates
+                media_msgs = []
+                seen_ids = set()
+                
+                async for msg in acc.get_chat_history(bot_username, limit=50):
+                    if msg.id in seen_ids:
+                        continue
                     if msg.media:
-                        await handle_private(client, acc, message, bot_username, msg.id)
-                        await asyncio.sleep(WAITING_TIME)
+                        seen_ids.add(msg.id)
+                        media_msgs.append(msg)
+                
+                # Sort messages by message ID in ascending order (Proper Sequence)
+                media_msgs.sort(key=lambda x: x.id)
+                
+                total_files = len(media_msgs)
+                if total_files == 0:
+                    await status_msg.edit_text("**No files found or bot didn't respond.**")
+                    if LOGIN_SYSTEM == True:
+                        try: await acc.disconnect()
+                        except: pass
+                    batch_temp.IS_BATCH[message.from_user.id] = True
+                    return
+
+                await status_msg.edit_text(f"**Found: {total_files}\nStarting batch delivery in proper sequence...**")
+                
+                for msg in media_msgs:
+                    if batch_temp.IS_BATCH.get(message.from_user.id): break
+                    await handle_private(client, acc, message, bot_username, msg.id)
+                    await asyncio.sleep(WAITING_TIME)
                 
                 await status_msg.delete()
             except Exception as e:
