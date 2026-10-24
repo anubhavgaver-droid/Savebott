@@ -231,7 +231,8 @@ async def save(client: Client, message: Message):
                 await status_msg.edit_text(f"**Total Found: {total_files}\nStarting proper sequence delivery...**")
                 
                 for msg in media_msgs:
-                    if batch_temp.IS_BATCH.get(message.from_user.id): break[span_0](start_span)[span_0](end_span) await handle_private(client, acc, message, bot_username, msg.id)
+                    if batch_temp.IS_BATCH.get(message.from_user.id): break
+                    await handle_private(client, acc, message, bot_username, msg.id)
                     await asyncio.sleep(WAITING_TIME)
                 
                 await status_msg.delete()
@@ -321,7 +322,7 @@ async def save(client: Client, message: Message):
 # handle private
 async def handle_private(client: Client, acc, message: Message, chatid: int, msgid: int):
     msg: Message = await acc.get_messages(chatid, msgid)
-    if msg.empty: return[span_1](start_span)[span_1](end_span)
+    if msg.empty: return
     msg_type = get_message_type(msg)
     if not msg_type: return 
     if CHANNEL_ID:
@@ -416,7 +417,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         try:
             await client.send_audio(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])   
         except Exception as e:
-            if ERROR_Message == True:
+            if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
         
         if ph_path != None: os.remove(ph_path)
