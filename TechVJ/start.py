@@ -7,7 +7,7 @@ import asyncio
 import pyrogram
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message 
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery 
 from config import API_ID, API_HASH, ERROR_MESSAGE, LOGIN_SYSTEM, STRING_SESSION, CHANNEL_ID, WAITING_TIME
 from database.db import db
 from TechVJ.strings import HELP_TXT
@@ -28,6 +28,111 @@ async def cancel_process_callback(client, callback_query):
         pass
 
 
+# ==================== SETTINGS & INLINE BUTTON HANDLERS ====================
+@Client.on_message(filters.command("settings") & filters.private)
+async def settings_command(client: Client, message: Message):
+    buttons = [
+        [InlineKeyboardButton("LOGIN", callback_data="set_login"), InlineKeyboardButton("LOGOUT", callback_data="set_logout")],
+        [InlineKeyboardButton("SET CHANNEL", callback_data="set_chat"), InlineKeyboardButton("REMOVE CHANNEL", callback_data="rem_chat")],
+        [InlineKeyboardButton("ADD CAPTION", callback_data="set_cap"), InlineKeyboardButton("REMOVE CAPTION", callback_data="rem_cap")],
+        [InlineKeyboardButton("SET THUMB", callback_data="set_thb"), InlineKeyboardButton("REMOVE THUMB", callback_data="rem_thb")]
+    ]
+    reply_markup = InlineKeyboardMarkup(buttons)
+    await message.reply_text(
+        "<b>CUSTOMIZE YOUR SETTINGS AS PER YOUR NEEDS.</b>",
+        reply_markup=reply_markup,
+        reply_to_message_id=message.id
+    )
+
+@Client.on_callback_query(filters.regex("^set_"))
+async def settings_callback(client: Client, query: CallbackQuery):
+    data = query.data
+    user_id = query.from_user.id
+    if data == "set_login":
+        await query.message.reply_text("Please use `/login <session_string>` command to login.")
+    elif data == "set_logout":
+        await db.remove_session(user_id)
+        await query.answer("Successfully Logged Out!", show_alert=True)
+    elif data == "set_chat":
+        await query.message.reply_text("Please use `/setchat <chat_id>` to set your channel.")
+    elif data == "rem_chat":
+        await db.set_chat(user_id, None)
+        await query.answer("Channel Removed!", show_alert=True)
+    elif data == "set_cap":
+        await query.message.reply_text("Please use `/set_caption <your_caption>` to set custom caption.")
+    elif data == "rem_cap":
+        await db.set_caption(user_id, None)
+        await query.answer("Caption Removed!", show_alert=True)
+    elif data == "set_thb":
+        await query.message.reply_text("Please send an image to set it as your thumbnail.")
+    elif data == "rem_thb":
+        await db.set_thumbnail(user_id, None)
+        await query.answer("Thumbnail Removed!", show_alert=True)
+    await query.answer()
+
+
+# ==================== THUMBNAIL COMMANDS ====================
+@Client.on_message(filters.command("set_thumb") & filters.private)
+async def set_thumb(client, message):
+    if not message.reply_to_message or not message.reply_to_message.photo:
+        return await message.reply("Please reply to an image to set thumbnail!")
+    file_id = message.reply_to_message.photo.file_id
+    await db.set_thumbnail(message.from_user.id, file_id)
+    await message.reply("Thumbnail Saved Successfully!")
+
+@Client.on_message(filters.command("view_thumb") & filters.private)
+async def view_thumb(client, message):
+    thumb = await db.get_thumbnail(message.from_user.id)
+    if not thumb:
+        return await message.reply("You haven't set any thumbnail yet.")
+    await client.send_photo(message.chat.id, thumb, caption="Your Current Thumbnail")
+
+@Client.on_message(filters.command("del_thumb") & filters.private)
+async def del_thumb(client, message):
+    await db.set_thumbnail(message.from_user.id, None)
+    await message.reply("Thumbnail Deleted Successfully!")
+
+
+# ==================== CAPTION COMMANDS ====================
+@Client.on_message(filters.command("set_caption") & filters.private)
+async def set_caption(client, message):
+    if len(message.command) < 2:
+        return await message.reply("Usage: `/set_caption Your Custom Caption`")
+    caption = message.text.split(" ", 1)[1]
+    await db.set_caption(message.from_user.id, caption)
+    await message.reply("Custom Caption Saved Successfully!")
+
+@Client.on_message(filters.command("see_caption") & filters.private)
+async def see_caption(client, message):
+    caption = await db.get_caption(message.from_user.id)
+    if not caption:
+        return await message.reply("You haven't set any custom caption yet.")
+    await message.reply(f"Your Caption:\n\n{caption}")
+
+@Client.on_message(filters.command("del_caption") & filters.private)
+async def del_caption(client, message):
+    await db.set_caption(message.from_user.id, None)
+    await message.reply("Custom Caption Deleted Successfully!")
+
+
+# ==================== CHAT / CHANNEL COMMANDS ====================
+@Client.on_message(filters.command("setchat") & filters.private)
+async def set_chat(client, message):
+    if len(message.command) < 2:
+        return await message.reply("Usage: `/setchat -100xxxxxxxxxx`")
+    try:
+        chat_id = int(message.command[1])
+        await db.set_chat(message.from_user.id, chat_id)
+        await message.reply("Target Channel Saved Successfully!")
+    except ValueError:
+        await message.reply("Invalid Chat ID!")
+
+@Client.on_message(filters.command("remchat") & filters.private)
+async def rem_chat(client, message):
+    await db.set_chat(message.from_user.id, None)
+    await message.reply("Target Channel Removed!")
+
+
 # start command with Payload & dlbot Support
 @Client.on_message(filters.command(["start", "dlbot"]))
 async def send_start(client: Client, message: Message):
@@ -40,12 +145,10 @@ async def send_start(client: Client, message: Message):
             message.text = extracted_link
             return await save(client, message)
 
-    buttons = [[
-        InlineKeyboardButton("❣️ Developer", url = "https://t.me/kingvj01")
-    ],[
-        InlineKeyboardButton('🔍 sᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/vj_bot_disscussion'),
-        InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/vj_bots')
-    ]]
+    buttons = [
+        [InlineKeyboardButton("SETTINGS", callback_data="open_settings"), InlineKeyboardButton("DEVELOPER", url="https://t.me/kingvj01")],
+        [InlineKeyboardButton('🔍 ꜱᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/vj_bot_disscussion'), InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/vj_bots')]
+    ]
     reply_markup = InlineKeyboardMarkup(buttons)
     await client.send_message(
         chat_id=message.chat.id, 
@@ -155,7 +258,6 @@ async def save(client: Client, message: Message):
         if batch_temp.IS_BATCH.get(message.from_user.id) == False:
             return await message.reply_text("**One Task Is Already Processing. Wait For Complete It. If You Want To Cancel This Task Then Use - /cancel**")
         
-        # Handling Bot Start Parameter Links (Supports BOTH Manual Count & Auto-Collect via skip/0)
         if "?start=" in message.text:
             if LOGIN_SYSTEM == True:
                 user_data = await db.get_session(message.from_user.id)
@@ -232,7 +334,6 @@ async def save(client: Client, message: Message):
                 seen_ids = set()
                 
                 if use_auto_collect:
-                    # Feature 2: Auto-Collect until bot stops sending
                     no_new_files_count = 0
                     while True:
                         if batch_temp.IS_BATCH.get(message.from_user.id): break
@@ -264,7 +365,6 @@ async def save(client: Client, message: Message):
 
                         await asyncio.sleep(2)
                 else:
-                    # Feature 1: Fixed Count Collection
                     for _ in range(40):
                         await asyncio.sleep(2)
                         async for msg in acc.get_chat_history(bot_username, limit=50):
@@ -344,7 +444,6 @@ async def save(client: Client, message: Message):
             batch_temp.IS_BATCH[message.from_user.id] = True
             return
 
-        # Direct Single Link Handling
         datas = message.text.split("/")
         temp = datas[-1].replace("?single","").split("-")
         fromID = int(temp[0].strip())
@@ -352,7 +451,6 @@ async def save(client: Client, message: Message):
         await process_batch_range(client, message, message.text, fromID, toID)
 
 
-# Common batch range processor function
 async def process_batch_range(client: Client, message: Message, link_text: str, fromID: int, toID: int):
     datas = link_text.split("/")
     
@@ -447,13 +545,17 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
     batch_temp.IS_BATCH[message.from_user.id] = True
 
 
-# handle private with exact video status flow
 async def handle_private(client: Client, acc, message: Message, chatid, msgid, status_msg=None, cancel_markup=None, current_idx=1, total_files=1, success=0, failed=0):
     msg: Message = await acc.get_messages(chatid, msgid)
     if msg.empty: return 
     msg_type = get_message_type(msg)
     if not msg_type: return 
-    if CHANNEL_ID:
+    
+    # Custom Chat / Target Channel Check
+    user_chat_id = await db.get_chat(message.from_user.id)
+    if user_chat_id:
+        chat = int(user_chat_id)
+    elif CHANNEL_ID:
         try:
             chat = int(CHANNEL_ID)
         except:
@@ -472,7 +574,6 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
             return 
 
-    # 1. DOWNLOADING STATUS
     if status_msg and cancel_markup:
         try:
             await status_msg.edit_text(
@@ -493,7 +594,6 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
         if os.path.exists(file): os.remove(file)
         return 
 
-    # 2. WRITING METADATA STATUS
     if status_msg and cancel_markup:
         try:
             await status_msg.edit_text(
@@ -504,12 +604,18 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             pass
         await asyncio.sleep(0.3)
 
-    if msg.caption:
-        caption = msg.caption
-    else:
-        caption = None
+    # Custom Caption & Thumbnail Handling
+    custom_caption = await db.get_caption(message.from_user.id)
+    custom_thumb = await db.get_thumbnail(message.from_user.id)
 
-    # 3. UPLOADING STATUS
+    if custom_caption:
+        try:
+            caption = custom_caption.format(filename=msg.document.file_name if msg.document else "Media")
+        except:
+            caption = custom_caption
+    else:
+        caption = msg.caption if msg.caption else None
+
     if status_msg and cancel_markup:
         try:
             await status_msg.edit_text(
@@ -520,30 +626,34 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             pass
             
     if "Document" == msg_type:
-        try:
-            ph_path = await acc.download_media(msg.document.thumbs[0].file_id)
-        except:
-            ph_path = None
+        ph_path = custom_thumb if custom_thumb else None
+        if not ph_path:
+            try:
+                ph_path = await acc.download_media(msg.document.thumbs[0].file_id)
+            except:
+                ph_path = None
         
         try:
             await client.send_document(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        if ph_path != None and os.path.exists(ph_path): os.remove(ph_path)
+        if ph_path and ph_path != custom_thumb and os.path.exists(ph_path): os.remove(ph_path)
         
     elif "Video" == msg_type:
-        try:
-            ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
-        except:
-            ph_path = None
+        ph_path = custom_thumb if custom_thumb else None
+        if not ph_path:
+            try:
+                ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
+            except:
+                ph_path = None
         
         try:
             await client.send_video(chat, file, duration=msg.video.duration, width=msg.video.width, height=msg.video.height, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        if ph_path != None and os.path.exists(ph_path): os.remove(ph_path)
+        if ph_path and ph_path != custom_thumb and os.path.exists(ph_path): os.remove(ph_path)
 
     elif "Animation" == msg_type:
         try:
@@ -574,10 +684,12 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
 
     elif "Audio" == msg_type:
-        try:
-            ph_path = await acc.download_media(msg.audio.thumbs[0].file_id)
-        except:
-            ph_path = None
+        ph_path = custom_thumb if custom_thumb else None
+        if not ph_path:
+            try:
+                ph_path = await acc.download_media(msg.audio.thumbs[0].file_id)
+            except:
+                ph_path = None
 
         duration = getattr(msg.audio, "duration", 0)
         performer = "kcxry"
@@ -598,7 +710,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
         
-        if ph_path != None and os.path.exists(ph_path): os.remove(ph_path)
+        if ph_path and ph_path != custom_thumb and os.path.exists(ph_path): os.remove(ph_path)
 
     elif "Photo" == msg_type:
         try:
@@ -607,12 +719,10 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
     
-    # 4. DELETE LOCAL FILE AFTER SENDING
     if os.path.exists(file): 
         os.remove(file)
 
 
-# get the type of message
 def get_message_type(msg: pyrogram.types.messages_and_media.message.Message):
     try:
         msg.document.file_id
