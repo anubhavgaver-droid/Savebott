@@ -74,7 +74,7 @@ async def send_cancel(client: Client, message: Message):
     )
 
 
-# ==================== /batch COMMAND HANDLER (Interactive Step 1 & Step 2) ====================
+# ==================== /batch COMMAND HANDLER ====================
 @Client.on_message(filters.command("batch") & filters.private)
 async def batch_command(client: Client, message: Message):
     if not await db.is_user_exist(message.from_user.id):
@@ -84,7 +84,6 @@ async def batch_command(client: Client, message: Message):
         return await message.reply_text("**One Task Is Already Processing. Wait For Complete It. If You Want To Cancel This Task Then Use - /cancel**")
 
     try:
-        # Step 1: First message link
         first_msg = await client.ask(
             chat_id=message.chat.id,
             text="<b>📦 Batch Save - Step 1 of 2\n\nSend the link of the first message you want to save.\n\nSend /cancel to stop.</b>",
@@ -98,7 +97,6 @@ async def batch_command(client: Client, message: Message):
         if "t.me/" not in first_link:
             return await first_msg.reply("<b>Invalid link provided. Please start again with /batch</b>")
 
-        # Step 2: Last message link or count
         second_msg = await client.ask(
             chat_id=message.chat.id,
             text="<b>📦 Batch Save - Step 2 of 2\n\nNow tell me where to stop:\n\n• Paste the link of the last message\n• Or just send how many files you want (e.g. 50)\n\nSend /cancel to stop.</b>",
@@ -110,7 +108,6 @@ async def batch_command(client: Client, message: Message):
 
         second_input = second_msg.text.strip()
 
-        # Parse links and range
         if "t.me/" in second_input:
             datas_first = first_link.split("/")
             datas_second = second_input.split("/")
@@ -158,7 +155,7 @@ async def save(client: Client, message: Message):
         if batch_temp.IS_BATCH.get(message.from_user.id) == False:
             return await message.reply_text("**One Task Is Already Processing. Wait For Complete It. If You Want To Cancel This Task Then Use - /cancel**")
         
-        # Handling Bot Start Parameter Links (e.g., https://t.me/BotName?start=payload)
+        # Handling Bot Start Parameter Links (Supports BOTH Manual Count & Auto-Collect via skip/0)
         if "?start=" in message.text:
             if LOGIN_SYSTEM == True:
                 user_data = await db.get_session(message.from_user.id)
@@ -181,25 +178,30 @@ async def save(client: Client, message: Message):
                 try:
                     count_msg = await client.ask(
                         chat_id=message.chat.id,
-                        text="<b>Is link mein total kitni files hain? Kripya sirf number bhejiye (jaise: 20):\n\n(Process cancel karne ke liye /cancel bhejein)</b>",
+                        text="<b>Is link mein total kitni files hain?\n\n• Sirf number bhejiye (jaise: 20) agar limit pata ho.\n• Ya 'skip' / 0 bhejiye agar bot khud auto-collect kare.\n\n(Process cancel karne ke liye /cancel bhejein)</b>",
                         filters=filters.text,
                         timeout=60
                     )
-                    if count_msg.text == "/cancel":
+                    if count_msg.text.strip().lower() == "/cancel":
                         await count_msg.reply("<b>Process cancelled !</b>")
                         if LOGIN_SYSTEM == True:
                             try: await acc.disconnect()
                             except: pass
                         batch_temp.IS_BATCH[message.from_user.id] = True
                         return
-                    total_expected = int(count_msg.text.strip())
-                except ValueError:
-                    await message.reply("**Invalid number provided. Please send link again.**")
-                    if LOGIN_SYSTEM == True:
-                        try: await acc.disconnect()
-                        except: pass
-                    batch_temp.IS_BATCH[message.from_user.id] = True
-                    return
+                    
+                    user_input = count_msg.text.strip().lower()
+                    if user_input in ["skip", "0"]:
+                        use_auto_collect = True
+                        total_expected = 0
+                    else:
+                        try:
+                            total_expected = int(user_input)
+                            use_auto_collect = False
+                        except ValueError:
+                            use_auto_collect = True
+                            total_expected = 0
+
                 except asyncio.exceptions.TimeoutError:
                     await message.reply("**Time expired. Process cancelled.**")
                     if LOGIN_SYSTEM == True:
@@ -215,7 +217,7 @@ async def save(client: Client, message: Message):
 
                 cancel_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_process")]])
                 status_msg = await message.reply_text(
-                    f"📥 **Downloading:** 0 of {total_expected}\n✅ **Success:** 0\n❌ **Failed:** 0\n🔄 **Running:** Fetching files...",
+                    f"🔍 **Initializing Process...** Please wait.",
                     reply_markup=cancel_markup
                 )
                 
@@ -229,32 +231,66 @@ async def save(client: Client, message: Message):
                 media_msgs = []
                 seen_ids = set()
                 
-                for _ in range(40):
-                    await asyncio.sleep(2)
-                    async for msg in acc.get_chat_history(bot_username, limit=50):
-                        if msg.id <= last_msg_id:
-                            break
-                        if msg.id in seen_ids:
-                            continue
-                        if msg.media:
-                            seen_ids.add(msg.id)
-                            media_msgs.append(msg)
-                    
-                    try:
-                        await status_msg.edit_text(
-                            f"📥 **Downloading:** Collected {len(media_msgs)} of {total_expected}\n✅ **Success:** 0\n❌ **Failed:** 0\n🔄 **Running:** Fetching...",
-                            reply_markup=cancel_markup
-                        )
-                    except:
-                        pass
+                if use_auto_collect:
+                    # Feature 2: Auto-Collect until bot stops sending
+                    no_new_files_count = 0
+                    while True:
+                        if batch_temp.IS_BATCH.get(message.from_user.id): break
                         
-                    if len(media_msgs) >= total_expected:
-                        break
+                        previous_len = len(media_msgs)
+                        async for msg in acc.get_chat_history(bot_username, limit=30):
+                            if msg.id <= last_msg_id:
+                                break
+                            if msg.id in seen_ids:
+                                continue
+                            if msg.media:
+                                seen_ids.add(msg.id)
+                                media_msgs.append(msg)
+                        
+                        try:
+                            await status_msg.edit_text(
+                                f"🔍 **Auto-Collecting...**\n📦 **Files Found:** {len(media_msgs)}\n🔄 **Status:** Waiting for bot to finish...",
+                                reply_markup=cancel_markup
+                            )
+                        except:
+                            pass
+
+                        if len(media_msgs) == previous_len:
+                            no_new_files_count += 1
+                            if no_new_files_count >= 4:
+                                break
+                        else:
+                            no_new_files_count = 0
+
+                        await asyncio.sleep(2)
+                else:
+                    # Feature 1: Fixed Count Collection
+                    for _ in range(40):
+                        await asyncio.sleep(2)
+                        async for msg in acc.get_chat_history(bot_username, limit=50):
+                            if msg.id <= last_msg_id:
+                                break
+                            if msg.id in seen_ids:
+                                continue
+                            if msg.media:
+                                seen_ids.add(msg.id)
+                                media_msgs.append(msg)
+                        
+                        try:
+                            await status_msg.edit_text(
+                                f"📥 **Downloading:** Collected {len(media_msgs)} of {total_expected}\n✅ **Success:** 0\n❌ **Failed:** 0\n🔄 **Running:** Fetching...",
+                                reply_markup=cancel_markup
+                            )
+                        except:
+                            pass
+                            
+                        if len(media_msgs) >= total_expected:
+                            break
+                    media_msgs = media_msgs[:total_expected]
                 
                 media_msgs.sort(key=lambda x: x.id)
-                media_msgs = media_msgs[:total_expected]
-                
                 total_files = len(media_msgs)
+                
                 if total_files == 0:
                     await status_msg.edit_text("**No files found or bot didn't respond.**")
                     if LOGIN_SYSTEM == True:
@@ -262,6 +298,9 @@ async def save(client: Client, message: Message):
                         except: pass
                     batch_temp.IS_BATCH[message.from_user.id] = True
                     return
+
+                await status_msg.edit_text(f"✨ **Ready! Total Files:** {total_files}\nStarting delivery...")
+                await asyncio.sleep(1.5)
 
                 success_count = 0
                 failed_count = 0
@@ -278,7 +317,6 @@ async def save(client: Client, message: Message):
                         if ERROR_MESSAGE == True:
                             await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
                     
-                    # Sleep Time Counter Display
                     if idx < total_files and WAITING_TIME > 0:
                         for remaining in range(int(WAITING_TIME), 0, -1):
                             if batch_temp.IS_BATCH.get(message.from_user.id): break
@@ -314,7 +352,7 @@ async def save(client: Client, message: Message):
         await process_batch_range(client, message, message.text, fromID, toID)
 
 
-# Common batch range processor function with countdown sleep
+# Common batch range processor function
 async def process_batch_range(client: Client, message: Message, link_text: str, fromID: int, toID: int):
     datas = link_text.split("/")
     
@@ -384,7 +422,6 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
 
-        # Sleep Time Countdown Display Before Next File
         if current_index < total_files and WAITING_TIME > 0:
             for remaining in range(int(WAITING_TIME), 0, -1):
                 if batch_temp.IS_BATCH.get(message.from_user.id): break
@@ -410,7 +447,7 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
     batch_temp.IS_BATCH[message.from_user.id] = True
 
 
-# handle private with exact video status flow (Downloading -> Writing metadata -> Uploading -> Delete)
+# handle private with exact video status flow
 async def handle_private(client: Client, acc, message: Message, chatid, msgid, status_msg=None, cancel_markup=None, current_idx=1, total_files=1, success=0, failed=0):
     msg: Message = await acc.get_messages(chatid, msgid)
     if msg.empty: return 
@@ -533,7 +570,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
                 parse_mode=enums.ParseMode.HTML
             )
         except Exception as e:
-            if ERROR_Message == True:
+            if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
 
     elif "Audio" == msg_type:
