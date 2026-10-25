@@ -103,7 +103,7 @@ async def back_home_callback(client: Client, query: CallbackQuery):
     reply_markup = InlineKeyboardMarkup(buttons)
     try:
         await query.message.edit_text(
-            f"<b>👋 Hi {query.from_user.mention}, I am Save Restricted Content Bot, I can send you restricted content by its post link.\n\nFor downloading restricted content /login first.\n\nKnow how to use bot by - /help</b>",
+            f"<b>👋 Hi {query.from_user.mention}, I am Save Restricted Content Bot, I can send you restricted content by its post link.\n\nFor downloading restricted content /login first.\n\nKnow how to use bot by - /help\n\nsee plans /plans</b>",
             reply_markup=reply_markup
         )
     except:
@@ -354,13 +354,13 @@ async def send_start(client: Client, message: Message):
             return await save(client, message)
 
     buttons = [
-        [InlineKeyboardButton("SETTINGS", callback_data="open_settings"), InlineKeyboardButton("DEVELOPER", url="https://t.me/kingvj01")],
-        [InlineKeyboardButton('🔍 ꜱᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/vj_bot_disscussion'), InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/vj_bots')]
+        [InlineKeyboardButton("SETTINGS", callback_data="open_settings"), InlineKeyboardButton("DEVELOPER", url="https://t.me/kcxry")],
+        [InlineKeyboardButton('🔍 ꜱᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/pratilipifm0900'), InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/freestoryhubMR')]
     ]
     reply_markup = InlineKeyboardMarkup(buttons)
     await client.send_message(
         chat_id=message.chat.id, 
-        text=f"<b>👋 Hi {message.from_user.mention}, I am Save Restricted Content Bot, I can send you restricted content by its post link.\n\nFor downloading restricted content /login first.\n\nKnow how to use bot by - /help</b>", 
+        text=f"<b>👋 Hi {message.from_user.mention}, I am Save Restricted Content Bot, I can send you restricted content by its post link.\n\nFor downloading restricted content /login first.\n\nKnow how to use bot by - /help\n\nsee plans /plans</b>", 
         reply_markup=reply_markup, 
         reply_to_message_id=message.id
     )
