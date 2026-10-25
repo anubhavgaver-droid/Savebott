@@ -4,6 +4,7 @@
 
 import motor.motor_asyncio
 from config import DB_NAME, DB_URI
+import time
 
 class Database:
     
@@ -23,14 +24,20 @@ class Database:
             thumbnail = None,
             caption = None,
             artist = None,
+            used_bytes = 0,
+            plan = "free",          # 'free', 'basic', 'standard', 'pro'
+            plan_expiry = 0,        # Expiry timestamp
+            daily_files = 0,        # Aaj ki download count
+            last_reset = 0          # 24 hours timer check
         )
     
     async def add_user(self, id, name):
-        user = self.new_user(id, name)
-        await self.col.insert_one(user)
+        if not await self.is_user_exist(id):
+            user = self.new_user(id, name)
+            await self.col.insert_one(user)
     
     async def is_user_exist(self, id):
-        user = await self.col.find_one({'id':int(id)})
+        user = await self.col.find_one({'id': int(id)})
         return bool(user)
     
     async def total_users_count(self):
@@ -99,5 +106,90 @@ class Database:
         user = await self.col.find_one({'id': int(id)})
         return user.get('artist') if user else None
 
-db = Database(DB_URI, "TechVJDemoBot")
+    # Usage & Plan Database Methods
+    async def get_user_data(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user if user else None
 
+    async def set_user_plan(self, id, plan_name, expiry_seconds):
+        expiry_time = time.time() + expiry_seconds if expiry_seconds > 0 else 0
+        await self.col.update_one(
+            {'id': int(id)}, 
+            {'$set': {'plan': plan_name, 'plan_expiry': expiry_time}}
+        )
+
+    async def add_used_bytes(self, id, bytes_count):
+        user = await self.col.find_one({'id': int(id)})
+        current = user.get('used_bytes', 0) if user else 0
+        await self.col.update_one({'id': int(id)}, {'$set': {'used_bytes': current + bytes_count}})
+
+    async def get_used_bytes(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user.get('used_bytes', 0) if user else 0
+
+    async def check_and_update_limit(self, id, file_size):
+        user = await self.col.find_one({'id': int(id)})
+        if not user:
+            return False, "User not found. Please /start the bot."
+
+        current_time = time.time()
+        
+        # Plan Expiry Check
+        plan = user.get('plan', 'free')
+        expiry = user.get('plan_expiry', 0)
+        if plan != 'free' and expiry > 0 and current_time > expiry:
+            plan = 'free'
+            await self.col.update_one({'id': int(id)}, {'$set': {'plan': 'free', 'plan_expiry': 0}})
+
+        last_reset = user.get('last_reset', 0)
+        daily_files = user.get('daily_files', 0)
+
+        # 24 Hours Reset Logic
+        if current_time - last_reset >= 86400:
+            daily_files = 0
+            last_reset = current_time
+
+        # Plan-wise Limits Configuration
+        if plan == "free":
+            max_files = 40
+            max_size_mb = 40
+            max_total_mb = 500      # Free total limit 500 MB
+        elif plan == "basic":
+            max_files = 100
+            max_size_mb = 100
+            max_total_mb = 1500     # Basic total limit 1500 MB
+        elif plan == "standard":
+            max_files = 300
+            max_size_mb = 500
+            max_total_mb = 5000     # Standard total limit 5000 MB
+        elif plan == "pro":
+            max_files = 999999      # Unlimited
+            max_size_mb = 4000
+            max_total_mb = 99999999 # Pro unlimited
+        else:
+            max_files = 40
+            max_size_mb = 40
+            max_total_mb = 500
+
+        # File Size Check per file
+        file_size_mb = file_size / (1024 * 1024)
+        if file_size_mb > max_size_mb:
+            return False, f"❌ File size exceeds! Your current plan allows max {max_size_mb} MB per file."
+
+        # Total Data Usage Check
+        current_used_mb = user.get('used_bytes', 0) / (1024 * 1024)
+        if (current_used_mb + file_size_mb) > max_total_mb:
+            return False, f"❌ Plan Data Limit Exceeded! Your plan allows total {max_total_mb} MB usage."
+
+        # Daily Files Count Check
+        if daily_files >= max_files:
+            return False, f"❌ Daily file limit reached ({max_files} files/day). Please upgrade your plan or wait 24 hours."
+
+        # Update Counters
+        await self.col.update_one(
+            {'id': int(id)}, 
+            {'$set': {'daily_files': daily_files + 1, 'last_reset': last_reset}}
+        )
+        return True, "Allowed"
+
+db = Database(DB_URI, "TechVJDemoBot")
