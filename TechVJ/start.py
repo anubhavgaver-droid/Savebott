@@ -1,3 +1,4 @@
+
 import os
 import asyncio 
 import pyrogram
@@ -31,7 +32,9 @@ async def settings_command(client: Client, message: Message):
         [InlineKeyboardButton("LOGIN", callback_data="set_login"), InlineKeyboardButton("LOGOUT", callback_data="set_logout")],
         [InlineKeyboardButton("SET CHANNEL", callback_data="set_chat"), InlineKeyboardButton("REMOVE CHANNEL", callback_data="rem_chat")],
         [InlineKeyboardButton("ADD CAPTION", callback_data="set_cap"), InlineKeyboardButton("REMOVE CAPTION", callback_data="rem_cap")],
-        [InlineKeyboardButton("SET THUMB", callback_data="set_thb"), InlineKeyboardButton("REMOVE THUMB", callback_data="rem_thb")]
+        [InlineKeyboardButton("SET THUMB", callback_data="set_thb"), InlineKeyboardButton("REMOVE THUMB", callback_data="rem_thb")],
+        [InlineKeyboardButton("SET ARTIST", callback_data="set_art"), InlineKeyboardButton("REMOVE ARTIST", callback_data="rem_art")],
+        [InlineKeyboardButton("« BACK", callback_data="back_home")]
     ]
     reply_markup = InlineKeyboardMarkup(buttons)
     await message.reply_text(
@@ -47,7 +50,9 @@ async def open_settings_callback(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("LOGIN", callback_data="set_login"), InlineKeyboardButton("LOGOUT", callback_data="set_logout")],
         [InlineKeyboardButton("SET CHANNEL", callback_data="set_chat"), InlineKeyboardButton("REMOVE CHANNEL", callback_data="rem_chat")],
         [InlineKeyboardButton("ADD CAPTION", callback_data="set_cap"), InlineKeyboardButton("REMOVE CAPTION", callback_data="rem_cap")],
-        [InlineKeyboardButton("SET THUMB", callback_data="set_thb"), InlineKeyboardButton("REMOVE THUMB", callback_data="rem_thb")]
+        [InlineKeyboardButton("SET THUMB", callback_data="set_thb"), InlineKeyboardButton("REMOVE THUMB", callback_data="rem_thb")],
+        [InlineKeyboardButton("SET ARTIST", callback_data="set_art"), InlineKeyboardButton("REMOVE ARTIST", callback_data="rem_art")],
+        [InlineKeyboardButton("« BACK", callback_data="back_home")]
     ]
     reply_markup = InlineKeyboardMarkup(buttons)
     try:
@@ -60,6 +65,23 @@ async def open_settings_callback(client: Client, query: CallbackQuery):
             "<b>CUSTOMIZE YOUR SETTINGS AS PER YOUR NEEDS.</b>",
             reply_markup=reply_markup
         )
+    await query.answer()
+
+# Back to Home / Welcome Message Callback
+@Client.on_callback_query(filters.regex("back_home"))
+async def back_home_callback(client: Client, query: CallbackQuery):
+    buttons = [
+        [InlineKeyboardButton("SETTINGS", callback_data="open_settings"), InlineKeyboardButton("DEVELOPER", url="https://t.me/kingvj01")],
+        [InlineKeyboardButton('🔍 ꜱᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/vj_bot_disscussion'), InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/vj_bots')]
+    ]
+    reply_markup = InlineKeyboardMarkup(buttons)
+    try:
+        await query.message.edit_text(
+            f"<b>👋 Hi {query.from_user.mention}, I am Save Restricted Content Bot, I can send you restricted content by its post link.\n\nFor downloading restricted content /login first.\n\nKnow how to use bot by - /help</b>",
+            reply_markup=reply_markup
+        )
+    except:
+        pass
     await query.answer()
 
 @Client.on_callback_query(filters.regex("^(set_|rem_)"))
@@ -86,6 +108,11 @@ async def settings_callback(client: Client, query: CallbackQuery):
     elif data == "rem_thb":
         await db.set_thumbnail(user_id, None)
         await query.answer("Thumbnail Removed!", show_alert=True)
+    elif data == "set_art":
+        await query.message.reply_text("Please use `/set_artist <artist_name>` to set your custom artist.")
+    elif data == "rem_art":
+        await db.set_artist(user_id, None)
+        await query.answer("Custom Artist Removed!", show_alert=True)
     await query.answer()
 
 
@@ -131,6 +158,21 @@ async def see_caption(client, message):
 async def del_caption(client, message):
     await db.set_caption(message.from_user.id, None)
     await message.reply("Custom Caption Deleted Successfully!")
+
+
+# ==================== ARTIST COMMANDS ====================
+@Client.on_message(filters.command("set_artist") & filters.private)
+async def set_artist_cmd(client, message):
+    if len(message.command) < 2:
+        return await message.reply("Usage: `/set_artist Your Artist Name`")
+    artist_name = message.text.split(" ", 1)[1]
+    await db.set_artist(message.from_user.id, artist_name)
+    await message.reply(f"Custom Artist Saved Successfully: <b>{artist_name}</b>")
+
+@Client.on_message(filters.command("del_artist") & filters.private)
+async def del_artist_cmd(client, message):
+    await db.set_artist(message.from_user.id, None)
+    await message.reply("Custom Artist Deleted Successfully!")
 
 
 # ==================== CHAT / CHANNEL COMMANDS ====================
@@ -622,9 +664,10 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             pass
         await asyncio.sleep(0.3)
 
-    # Custom Caption & Thumbnail Handling (Fixed file_id path download issue)
+    # Custom Caption, Thumbnail & Artist Handling
     custom_caption = await db.get_caption(message.from_user.id)
     custom_thumb = await db.get_thumbnail(message.from_user.id)
+    custom_artist = await db.get_artist(message.from_user.id)
 
     ph_path = None
     if custom_thumb:
@@ -712,7 +755,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
                 ph_path = None
 
         duration = getattr(msg.audio, "duration", 0)
-        performer = "kcxry"
+        performer = custom_artist if custom_artist else "kcxry"
         title = getattr(msg.audio, "title", msg.document.file_name if msg.document else "Audio File")
 
         try:
