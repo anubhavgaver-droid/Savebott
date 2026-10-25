@@ -505,17 +505,17 @@ async def save(client: Client, message: Message):
                                 pass
                             await asyncio.sleep(1)
                 
-                # Final Summary Card
+                # Final Summary Card with Arrows
                 uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
                 complete_text = (
                     f"✅ **All done**\n\n"
-                    f"Saved ────────────── {success_count} of {total_files}\n\n"
+                    f"Saved ➔ {success_count} of {total_files}\n\n"
                     f"📊 Click Here For The Details\n\n"
-                    f"✅ Success ─────────── {success_count}\n"
-                    f"❌ Failed ──────────── {failed_count}\n"
-                    f"Uploaded now ──────── {uploaded_size_str}\n"
-                    f"Used today ────────── {uploaded_size_str} of Unlimited\n"
-                    f"Left today ────────── Unlimited"
+                    f"✅ Success ➔ {success_count}\n"
+                    f"❌ Failed ➔ {failed_count}\n"
+                    f"Uploaded now ➔ {uploaded_size_str}\n"
+                    f"Used today ➔ {uploaded_size_str} of Unlimited\n"
+                    f"Left today ➔ Unlimited"
                 )
                 thanks_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❤️ Thanks", callback_data="back_home")]])
                 try:
@@ -554,7 +554,7 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
             acc = Client("saverestricted", session_string=user_data, api_hash=api_hash, api_id=api_id)
             await acc.connect()
         except:
-            return message.reply("**Your Login Session Expired. So /logout First Then Login Again By - /login**")
+            return await message.reply("**Your Login Session Expired. So /logout First Then Login Again By - /login**")
     else:
         if TechVJUser is None:
             await client.send_message(message.chat.id, f"**String Session is not Set**", reply_to_message_id=message.id)
@@ -622,17 +622,17 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
                     pass
                 await asyncio.sleep(1)
 
-    # Final Summary Card
+    # Final Summary Card with Arrows
     uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
     complete_text = (
         f"✅ **All done**\n\n"
-        f"Saved ────────────── {success_count} of {total_files}\n\n"
+        f"Saved ➔ {success_count} of {total_files}\n\n"
         f"📊 Click Here For The Details\n\n"
-        f"✅ Success ─────────── {success_count}\n"
-        f"❌ Failed ──────────── {failed_count}\n"
-        f"Uploaded now ──────── {uploaded_size_str}\n"
-        f"Used today ────────── {uploaded_size_str} of Unlimited\n"
-        f"Left today ────────── Unlimited"
+        f"✅ Success ➔ {success_count}\n"
+        f"❌ Failed ➔ {failed_count}\n"
+        f"Uploaded now ➔ {uploaded_size_str}\n"
+        f"Used today ➔ {uploaded_size_str} of Unlimited\n"
+        f"Left today ➔ Unlimited"
     )
     thanks_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❤️ Thanks", callback_data="back_home")]])
     try:
