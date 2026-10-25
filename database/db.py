@@ -1,6 +1,3 @@
-# Don't Remove Credit @VJ_Bots
-# Subscribe YouTube Channel For Amazing Bot @Tech_VJ
-# Ask Doubt on telegram @KingVJ01
 
 import motor.motor_asyncio
 from config import DB_NAME, DB_URI
@@ -19,6 +16,9 @@ class Database:
             session = None,
             api_id = None,
             api_hash = None,
+            chat_id = None,
+            thumbnail = None,
+            caption = None,
         )
     
     async def add_user(self, id, name):
@@ -44,25 +44,48 @@ class Database:
 
     async def get_session(self, id):
         user = await self.col.find_one({'id': int(id)})
-        return user.get('session')
+        return user.get('session') if user else None
+
+    async def remove_session(self, id):
+        await self.col.update_one({'id': int(id)}, {'$set': {'session': None}})
 
     async def set_api_id(self, id, api_id):
         await self.col.update_one({'id': int(id)}, {'$set': {'api_id': api_id}})
 
     async def get_api_id(self, id):
         user = await self.col.find_one({'id': int(id)})
-        return user.get('api_id')
+        return user.get('api_id') if user else None
 
     async def set_api_hash(self, id, api_hash):
         await self.col.update_one({'id': int(id)}, {'$set': {'api_hash': api_hash}})
 
     async def get_api_hash(self, id):
         user = await self.col.find_one({'id': int(id)})
-        return user.get('api_hash')
+        return user.get('api_hash') if user else None
+
+    # Channel / Chat Settings
+    async def set_chat(self, id, chat_id):
+        await self.col.update_one({'id': int(id)}, {'$set': {'chat_id': chat_id}})
+
+    async def get_chat(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user.get('chat_id') if user else None
+
+    # Thumbnail Settings
+    async def set_thumbnail(self, id, thumbnail):
+        await self.col.update_one({'id': int(id)}, {'$set': {'thumbnail': thumbnail}})
+
+    async def get_thumbnail(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user.get('thumbnail') if user else None
+
+    # Custom Caption Settings
+    async def set_caption(self, id, caption):
+        await self.col.update_one({'id': int(id)}, {'$set': {'caption': caption}})
+
+    async def get_caption(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user.get('caption') if user else None
 
 db = Database(DB_URI, "TechVJDemoBot")
 
-# Don't Remove Credit @VJ_Bots
-# Subscribe YouTube Channel For Amazing Bot @Tech_VJ
-# Ask Doubt on telegram @KingVJ01
-                                       
