@@ -117,7 +117,6 @@ async def save(client: Client, message: Message):
             batch_temp.IS_BATCH[message.from_user.id] = False
             
             try:
-                # Step 1: User se pucho ki total kitni files hain
                 try:
                     count_msg = await client.ask(
                         chat_id=message.chat.id,
@@ -159,16 +158,13 @@ async def save(client: Client, message: Message):
                     reply_markup=cancel_markup
                 )
                 
-                # Step 2: Command bhejne se pehle last message ID note karo
                 last_msg_id = 0
                 async for m in acc.get_chat_history(bot_username, limit=1):
                     last_msg_id = m.id
                     break
 
-                # Step 3: Target bot ko start command bhejo
                 await acc.send_message(bot_username, f"/start {payload}")
                 
-                # Step 4: Files collect karo
                 media_msgs = []
                 seen_ids = set()
                 
@@ -214,11 +210,7 @@ async def save(client: Client, message: Message):
                         break
                     
                     try:
-                        await status_msg.edit_text(
-                            f"📥 **Downloading:** {idx} of {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}\n🔄 **Running:** Message ID {msg.id}",
-                            reply_markup=cancel_markup
-                        )
-                        await handle_private(client, acc, message, bot_username, msg.id)
+                        await handle_private(client, acc, message, bot_username, msg.id, status_msg, cancel_markup, idx, total_files, success_count, failed_count)
                         success_count += 1
                     except Exception as e:
                         failed_count += 1
@@ -287,18 +279,13 @@ async def save(client: Client, message: Message):
             
             current_index += 1
             try:
-                await status_msg.edit_text(
-                    f"📥 **Downloading:** {current_index} of {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}\n🔄 **Running:** Msg ID {msgid}",
-                    reply_markup=cancel_markup
-                )
-
                 if "https://t.me/c/" in message.text:
                     chatid = int("-100" + datas[4])
-                    await handle_private(client, acc, message, chatid, msgid)
+                    await handle_private(client, acc, message, chatid, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
         
                 elif "https://t.me/b/" in message.text:
                     username = datas[4]
-                    await handle_private(client, acc, message, username, msgid)
+                    await handle_private(client, acc, message, username, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
                 
                 else:
                     username = datas[3]
@@ -310,7 +297,7 @@ async def save(client: Client, message: Message):
                     try:
                         await client.copy_message(message.chat.id, msg.chat.id, msg.id, reply_to_message_id=message.id)
                     except:
-                        await handle_private(client, acc, message, username, msgid)
+                        await handle_private(client, acc, message, username, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
 
                 success_count += 1
             except Exception as e:
@@ -333,8 +320,8 @@ async def save(client: Client, message: Message):
         batch_temp.IS_BATCH[message.from_user.id] = True
 
 
-# handle private
-async def handle_private(client: Client, acc, message: Message, chatid: int, msgid: int):
+# handle private with exact video status flow (Downloading -> Writing metadata -> Uploading -> Delete)
+async def handle_private(client: Client, acc, message: Message, chatid, msgid, status_msg=None, cancel_markup=None, current_idx=1, total_files=1, success=0, failed=0):
     msg: Message = await acc.get_messages(chatid, msgid)
     if msg.empty: return 
     msg_type = get_message_type(msg)
@@ -346,7 +333,9 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             chat = message.chat.id
     else:
         chat = message.chat.id
+        
     if batch_temp.IS_BATCH.get(message.from_user.id): return 
+    
     if "Text" == msg_type:
         try:
             await client.send_message(chat, msg.text, entities=msg.entities, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
@@ -355,6 +344,16 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
             return 
+
+    # 1. DOWNLOADING STATUS
+    if status_msg and cancel_markup:
+        try:
+            await status_msg.edit_text(
+                f"📥 **Downloading:** {current_idx} of {total_files}\n✅ **Success:** {success}\n❌ **Failed:** {failed}\n🔄 **Running:** Downloading...",
+                reply_markup=cancel_markup
+            )
+        except:
+            pass
 
     try:
         file = await acc.download_media(msg)
@@ -367,10 +366,31 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         if os.path.exists(file): os.remove(file)
         return 
 
+    # 2. WRITING METADATA STATUS
+    if status_msg and cancel_markup:
+        try:
+            await status_msg.edit_text(
+                f"📥 **Downloading:** {current_idx} of {total_files}\n✅ **Success:** {success}\n❌ **Failed:** {failed}\n🔄 **Running:** Writing metadata...",
+                reply_markup=cancel_markup
+            )
+        except:
+            pass
+        await asyncio.sleep(0.3)
+
     if msg.caption:
         caption = msg.caption
     else:
         caption = None
+
+    # 3. UPLOADING STATUS
+    if status_msg and cancel_markup:
+        try:
+            await status_msg.edit_text(
+                f"📥 **Downloading:** {current_idx} of {total_files}\n✅ **Success:** {success}\n❌ **Failed:** {failed}\n🔄 **Running:** Uploading...",
+                reply_markup=cancel_markup
+            )
+        except:
+            pass
             
     if "Document" == msg_type:
         try:
@@ -385,7 +405,6 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
         if ph_path != None and os.path.exists(ph_path): os.remove(ph_path)
         
-
     elif "Video" == msg_type:
         try:
             ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
@@ -461,6 +480,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
     
+    # 4. DELETE LOCAL FILE AFTER SENDING
     if os.path.exists(file): 
         os.remove(file)
 
