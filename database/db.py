@@ -1,3 +1,6 @@
+# Don't Remove Credit @VJ_Bots
+# Subscribe YouTube Channel For Amazing Bot @Tech_VJ
+# Ask Doubt on telegram @KingVJ01
 
 import motor.motor_asyncio
 from config import DB_NAME, DB_URI
@@ -19,6 +22,7 @@ class Database:
             chat_id = None,
             thumbnail = None,
             caption = None,
+            artist = None,
         )
     
     async def add_user(self, id, name):
@@ -86,6 +90,14 @@ class Database:
     async def get_caption(self, id):
         user = await self.col.find_one({'id': int(id)})
         return user.get('caption') if user else None
+
+    # Custom Artist Settings
+    async def set_artist(self, id, artist):
+        await self.col.update_one({'id': int(id)}, {'$set': {'artist': artist}})
+
+    async def get_artist(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user.get('artist') if user else None
 
 db = Database(DB_URI, "TechVJDemoBot")
 
