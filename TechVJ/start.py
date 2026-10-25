@@ -97,8 +97,8 @@ async def open_settings_callback(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex("back_home"))
 async def back_home_callback(client: Client, query: CallbackQuery):
     buttons = [
-        [InlineKeyboardButton("SETTINGS", callback_data="open_settings"), InlineKeyboardButton("DEVELOPER", url="https://t.me/kingvj01")],
-        [InlineKeyboardButton('🔍 ꜱᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/vj_bot_disscussion'), InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/vj_bots')]
+        [InlineKeyboardButton("SETTINGS", callback_data="open_settings"), InlineKeyboardButton("DEVELOPER", url="https://t.me/kcxry")],
+        [InlineKeyboardButton('🔍 ꜱᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/pratilipifm0900'), InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/freestoryhubMR')]
     ]
     reply_markup = InlineKeyboardMarkup(buttons)
     try:
