@@ -1,3 +1,6 @@
+# Don't Remove Credit Tg - @VJ_Bots
+# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
+# Ask Doubt on telegram @KingVJ01
 
 import os
 import asyncio 
@@ -12,6 +15,18 @@ from bot import TechVJUser
 
 class batch_temp(object):
     IS_BATCH = {}
+    UPLOADED_SIZE = {}
+
+# File size readable format function
+def get_readable_file_size(size_bytes):
+    if size_bytes == 0:
+        return "0 MiB"
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    i = 0
+    while size_bytes >= 1024 and i < len(units) - 1:
+        size_bytes /= 1024.0
+        i += 1
+    return f"{size_bytes:.2f} {units[i]}"
 
 # Cancel Callback Handler
 @Client.on_callback_query(filters.regex("cancel_process"))
@@ -335,6 +350,7 @@ async def save(client: Client, message: Message):
                 acc = TechVJUser
 
             batch_temp.IS_BATCH[message.from_user.id] = False
+            batch_temp.UPLOADED_SIZE[message.from_user.id] = 0
             
             try:
                 try:
@@ -489,8 +505,21 @@ async def save(client: Client, message: Message):
                                 pass
                             await asyncio.sleep(1)
                 
+                # Final Summary Card
+                uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
+                complete_text = (
+                    f"✅ **All done**\n\n"
+                    f"Saved ────────────── {success_count} of {total_files}\n\n"
+                    f"📊 Click Here For The Details\n\n"
+                    f"✅ Success ─────────── {success_count}\n"
+                    f"❌ Failed ──────────── {failed_count}\n"
+                    f"Uploaded now ──────── {uploaded_size_str}\n"
+                    f"Used today ────────── {uploaded_size_str} of Unlimited\n"
+                    f"Left today ────────── Unlimited"
+                )
+                thanks_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❤️ Thanks", callback_data="back_home")]])
                 try:
-                    await status_msg.edit_text(f"✨ **Batch Completed!**\n\n📥 **Total:** {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}")
+                    await status_msg.edit_text(complete_text, reply_markup=thanks_markup)
                 except:
                     pass
             except Exception as e:
@@ -525,7 +554,7 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
             acc = Client("saverestricted", session_string=user_data, api_hash=api_hash, api_id=api_id)
             await acc.connect()
         except:
-            return await message.reply("**Your Login Session Expired. So /logout First Then Login Again By - /login**")
+            return message.reply("**Your Login Session Expired. So /logout First Then Login Again By - /login**")
     else:
         if TechVJUser is None:
             await client.send_message(message.chat.id, f"**String Session is not Set**", reply_to_message_id=message.id)
@@ -533,6 +562,7 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
         acc = TechVJUser
             
     batch_temp.IS_BATCH[message.from_user.id] = False
+    batch_temp.UPLOADED_SIZE[message.from_user.id] = 0
     total_files = (toID - fromID) + 1
     success_count = 0
     failed_count = 0
@@ -592,8 +622,21 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
                     pass
                 await asyncio.sleep(1)
 
+    # Final Summary Card
+    uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
+    complete_text = (
+        f"✅ **All done**\n\n"
+        f"Saved ────────────── {success_count} of {total_files}\n\n"
+        f"📊 Click Here For The Details\n\n"
+        f"✅ Success ─────────── {success_count}\n"
+        f"❌ Failed ──────────── {failed_count}\n"
+        f"Uploaded now ──────── {uploaded_size_str}\n"
+        f"Used today ────────── {uploaded_size_str} of Unlimited\n"
+        f"Left today ────────── Unlimited"
+    )
+    thanks_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❤️ Thanks", callback_data="back_home")]])
     try:
-        await status_msg.edit_text(f"✨ **Batch Completed!**\n\n📥 **Total:** {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}")
+        await status_msg.edit_text(complete_text, reply_markup=thanks_markup)
     except:
         pass
 
@@ -645,6 +688,10 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
 
     try:
         file = await acc.download_media(msg)
+        if file and os.path.exists(file):
+            file_size = os.path.getsize(file)
+            current_total = batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0)
+            batch_temp.UPLOADED_SIZE[message.from_user.id] = current_total + file_size
     except Exception as e:
         if ERROR_MESSAGE == True:
             await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML) 
