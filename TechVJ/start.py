@@ -1,7 +1,3 @@
-# Don't Remove Credit Tg - @VJ_Bots
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
-
 import os
 import asyncio 
 import pyrogram
@@ -626,9 +622,16 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             pass
         await asyncio.sleep(0.3)
 
-    # Custom Caption & Thumbnail Handling
+    # Custom Caption & Thumbnail Handling (Fixed file_id path download issue)
     custom_caption = await db.get_caption(message.from_user.id)
     custom_thumb = await db.get_thumbnail(message.from_user.id)
+
+    ph_path = None
+    if custom_thumb:
+        try:
+            ph_path = await client.download_media(custom_thumb)
+        except:
+            ph_path = None
 
     if custom_caption:
         try:
@@ -648,8 +651,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             pass
             
     if "Document" == msg_type:
-        ph_path = custom_thumb if custom_thumb else None
-        if not ph_path:
+        if not ph_path and msg.document.thumbs:
             try:
                 ph_path = await acc.download_media(msg.document.thumbs[0].file_id)
             except:
@@ -660,11 +662,9 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        if ph_path and ph_path != custom_thumb and os.path.exists(ph_path): os.remove(ph_path)
         
     elif "Video" == msg_type:
-        ph_path = custom_thumb if custom_thumb else None
-        if not ph_path:
+        if not ph_path and msg.video.thumbs:
             try:
                 ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
             except:
@@ -675,7 +675,6 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        if ph_path and ph_path != custom_thumb and os.path.exists(ph_path): os.remove(ph_path)
 
     elif "Animation" == msg_type:
         try:
@@ -706,8 +705,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
 
     elif "Audio" == msg_type:
-        ph_path = custom_thumb if custom_thumb else None
-        if not ph_path:
+        if not ph_path and msg.audio.thumbs:
             try:
                 ph_path = await acc.download_media(msg.audio.thumbs[0].file_id)
             except:
@@ -731,8 +729,6 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        
-        if ph_path and ph_path != custom_thumb and os.path.exists(ph_path): os.remove(ph_path)
 
     elif "Photo" == msg_type:
         try:
@@ -741,6 +737,8 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
     
+    if ph_path and os.path.exists(ph_path): 
+        os.remove(ph_path)
     if os.path.exists(file): 
         os.remove(file)
 
