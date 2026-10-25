@@ -73,19 +73,80 @@ async def send_cancel(client: Client, message: Message):
         text="**Batch Successfully Cancelled.**"
     )
 
+
+# ==================== /batch COMMAND HANDLER (Interactive Step 1 & Step 2) ====================
+@Client.on_message(filters.command("batch") & filters.private)
+async def batch_command(client: Client, message: Message):
+    if not await db.is_user_exist(message.from_user.id):
+        await db.add_user(message.from_user.id, message.from_user.first_name)
+
+    if batch_temp.IS_BATCH.get(message.from_user.id) == False:
+        return await message.reply_text("**One Task Is Already Processing. Wait For Complete It. If You Want To Cancel This Task Then Use - /cancel**")
+
+    try:
+        # Step 1: First message link
+        first_msg = await client.ask(
+            chat_id=message.chat.id,
+            text="<b>📦 Batch Save - Step 1 of 2\n\nSend the link of the first message you want to save.\n\nSend /cancel to stop.</b>",
+            filters=filters.text,
+            timeout=120
+        )
+        if first_msg.text == "/cancel":
+            return await first_msg.reply("<b>Batch cancelled.</b>")
+        
+        first_link = first_msg.text.strip()
+        if "t.me/" not in first_link:
+            return await first_msg.reply("<b>Invalid link provided. Please start again with /batch</b>")
+
+        # Step 2: Last message link or count
+        second_msg = await client.ask(
+            chat_id=message.chat.id,
+            text="<b>📦 Batch Save - Step 2 of 2\n\nNow tell me where to stop:\n\n• Paste the link of the last message\n• Or just send how many files you want (e.g. 50)\n\nSend /cancel to stop.</b>",
+            filters=filters.text,
+            timeout=120
+        )
+        if second_msg.text == "/cancel":
+            return await second_msg.reply("<b>Batch cancelled.</b>")
+
+        second_input = second_msg.text.strip()
+
+        # Parse links and range
+        if "t.me/" in second_input:
+            datas_first = first_link.split("/")
+            datas_second = second_input.split("/")
+            fromID = int(datas_first[-1].replace("?single", "").strip())
+            toID = int(datas_second[-1].replace("?single", "").strip())
+            
+            if fromID > toID:
+                fromID, toID = toID, fromID
+            link_template = first_link
+        else:
+            try:
+                count = int(second_input)
+            except ValueError:
+                return await second_msg.reply("<b>Invalid input. Please enter a valid number or link.</b>")
+            
+            datas_first = first_link.split("/")
+            fromID = int(datas_first[-1].replace("?single", "").strip())
+            toID = fromID + count - 1
+            link_template = first_link
+
+        await process_batch_range(client, message, link_template, fromID, toID)
+
+    except asyncio.exceptions.TimeoutError:
+        await message.reply("<b>Time expired. Batch process cancelled.</b>")
+    except Exception as e:
+        await message.reply(f"<b>Error: {e}</b>")
+
+
 @Client.on_message(filters.text & filters.private)
 async def save(client: Client, message: Message):
-    # Joining chat
     if ("https://t.me/+" in message.text or "https://t.me/joinchat/" in message.text) and LOGIN_SYSTEM == False:
         if TechVJUser is None:
             await client.send_message(message.chat.id, "String Session is not Set", reply_to_message_id=message.id)
             return
         try:
-            try:
-                await TechVJUser.join_chat(message.text)
-            except Exception as e: 
-                await client.send_message(message.chat.id, f"Error : {e}", reply_to_message_id=message.id)
-                return
+            await TechVJUser.join_chat(message.text)
             await client.send_message(message.chat.id, "Chat Joined", reply_to_message_id=message.id)
         except UserAlreadyParticipant:
             await client.send_message(message.chat.id, "Chat already Joined", reply_to_message_id=message.id)
@@ -217,7 +278,18 @@ async def save(client: Client, message: Message):
                         if ERROR_MESSAGE == True:
                             await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
                     
-                    await asyncio.sleep(WAITING_TIME)
+                    # Sleep Time Counter Display
+                    if idx < total_files and WAITING_TIME > 0:
+                        for remaining in range(int(WAITING_TIME), 0, -1):
+                            if batch_temp.IS_BATCH.get(message.from_user.id): break
+                            try:
+                                await status_msg.edit_text(
+                                    f"📥 **Downloading:** {idx} of {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}\n⏳ **Sleeping For:** {remaining} Sec..",
+                                    reply_markup=cancel_markup
+                                )
+                            except:
+                                pass
+                            await asyncio.sleep(1)
                 
                 try:
                     await status_msg.edit_text(f"✨ **Batch Completed!**\n\n📥 **Total:** {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}")
@@ -234,90 +306,108 @@ async def save(client: Client, message: Message):
             batch_temp.IS_BATCH[message.from_user.id] = True
             return
 
-        # Handling Public / Private Channel Batch Links (First Link to Last Link)
+        # Direct Single Link Handling
         datas = message.text.split("/")
         temp = datas[-1].replace("?single","").split("-")
         fromID = int(temp[0].strip())
+        toID = fromID
+        await process_batch_range(client, message, message.text, fromID, toID)
+
+
+# Common batch range processor function with countdown sleep
+async def process_batch_range(client: Client, message: Message, link_text: str, fromID: int, toID: int):
+    datas = link_text.split("/")
+    
+    if LOGIN_SYSTEM == True:
+        user_data = await db.get_session(message.from_user.id)
+        if user_data is None:
+            await message.reply("**For Downloading Restricted Content You Have To /login First.**")
+            return
+        api_id = int(await db.get_api_id(message.from_user.id))
+        api_hash = await db.get_api_hash(message.from_user.id)
         try:
-            toID = int(temp[1].strip())
+            acc = Client("saverestricted", session_string=user_data, api_hash=api_hash, api_id=api_id)
+            await acc.connect()
         except:
-            toID = fromID
-
-        if LOGIN_SYSTEM == True:
-            user_data = await db.get_session(message.from_user.id)
-            if user_data is None:
-                await message.reply("**For Downloading Restricted Content You Have To /login First.**")
-                return
-            api_id = int(await db.get_api_id(message.from_user.id))
-            api_hash = await db.get_api_hash(message.from_user.id)
-            try:
-                acc = Client("saverestricted", session_string=user_data, api_hash=api_hash, api_id=api_id)
-                await acc.connect()
-            except:
-                return await message.reply("**Your Login Session Expired. So /logout First Then Login Again By - /login**")
-        else:
-            if TechVJUser is None:
-                await client.send_message(message.chat.id, f"**String Session is not Set**", reply_to_message_id=message.id)
-                return
-            acc = TechVJUser
-				
-        batch_temp.IS_BATCH[message.from_user.id] = False
-        total_files = (toID - fromID) + 1
-        success_count = 0
-        failed_count = 0
-
-        cancel_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_process")]])
-        status_msg = await message.reply_text(
-            f"📥 **Downloading:** 0 of {total_files}\n✅ **Success:** 0\n❌ **Failed:** 0\n🔄 **Running:** Starting batch...",
-            reply_markup=cancel_markup
-        )
-
-        current_index = 0
-        for msgid in range(fromID, toID+1):
-            if batch_temp.IS_BATCH.get(message.from_user.id): 
-                break
+            return await message.reply("**Your Login Session Expired. So /logout First Then Login Again By - /login**")
+    else:
+        if TechVJUser is None:
+            await client.send_message(message.chat.id, f"**String Session is not Set**", reply_to_message_id=message.id)
+            return
+        acc = TechVJUser
             
-            current_index += 1
-            try:
-                if "https://t.me/c/" in message.text:
-                    chatid = int("-100" + datas[4])
-                    await handle_private(client, acc, message, chatid, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
+    batch_temp.IS_BATCH[message.from_user.id] = False
+    total_files = (toID - fromID) + 1
+    success_count = 0
+    failed_count = 0
+
+    cancel_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_process")]])
+    status_msg = await message.reply_text(
+        f"📥 **Downloading:** 0 of {total_files}\n✅ **Success:** 0\n❌ **Failed:** 0\n🔄 **Running:** Starting batch...",
+        reply_markup=cancel_markup
+    )
+
+    current_index = 0
+    for msgid in range(fromID, toID+1):
+        if batch_temp.IS_BATCH.get(message.from_user.id): 
+            break
         
-                elif "https://t.me/b/" in message.text:
-                    username = datas[4]
-                    await handle_private(client, acc, message, username, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
-                
-                else:
-                    username = datas[3]
-                    try:
-                        msg = await client.get_messages(username, msgid)
-                    except UsernameNotOccupied: 
-                        await client.send_message(message.chat.id, "The username is not occupied by anyone", reply_to_message_id=message.id)
-                        continue
-                    try:
-                        await client.copy_message(message.chat.id, msg.chat.id, msg.id, reply_to_message_id=message.id)
-                    except:
-                        await handle_private(client, acc, message, username, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
-
-                success_count += 1
-            except Exception as e:
-                failed_count += 1
-                if ERROR_MESSAGE == True:
-                    await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
-
-            await asyncio.sleep(WAITING_TIME)
-
+        current_index += 1
         try:
-            await status_msg.edit_text(f"✨ **Batch Completed!**\n\n📥 **Total:** {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}")
-        except:
-            pass
+            if "https://t.me/c/" in link_text:
+                chatid = int("-100" + datas[4])
+                await handle_private(client, acc, message, chatid, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
+    
+            elif "https://t.me/b/" in link_text:
+                username = datas[4]
+                await handle_private(client, acc, message, username, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
+            
+            else:
+                username = datas[3]
+                try:
+                    msg = await acc.get_messages(username, msgid)
+                except UsernameNotOccupied: 
+                    await client.send_message(message.chat.id, "The username is not occupied by anyone", reply_to_message_id=message.id)
+                    continue
+                except:
+                    pass
+                
+                try:
+                    await handle_private(client, acc, message, username, msgid, status_msg, cancel_markup, current_index, total_files, success_count, failed_count)
+                except Exception as e:
+                    if ERROR_MESSAGE == True:
+                        await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
 
-        if LOGIN_SYSTEM == True:
-            try:
-                await acc.disconnect()
-            except:
-                pass                
-        batch_temp.IS_BATCH[message.from_user.id] = True
+            success_count += 1
+        except Exception as e:
+            failed_count += 1
+            if ERROR_MESSAGE == True:
+                await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
+
+        # Sleep Time Countdown Display Before Next File
+        if current_index < total_files and WAITING_TIME > 0:
+            for remaining in range(int(WAITING_TIME), 0, -1):
+                if batch_temp.IS_BATCH.get(message.from_user.id): break
+                try:
+                    await status_msg.edit_text(
+                        f"📥 **Downloading:** {current_index} of {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}\n⏳ **Sleeping For:** {remaining} Sec..",
+                        reply_markup=cancel_markup
+                    )
+                except:
+                    pass
+                await asyncio.sleep(1)
+
+    try:
+        await status_msg.edit_text(f"✨ **Batch Completed!**\n\n📥 **Total:** {total_files}\n✅ **Success:** {success_count}\n❌ **Failed:** {failed_count}")
+    except:
+        pass
+
+    if LOGIN_SYSTEM == True:
+        try:
+            await acc.disconnect()
+        except:
+            pass                
+    batch_temp.IS_BATCH[message.from_user.id] = True
 
 
 # handle private with exact video status flow (Downloading -> Writing metadata -> Uploading -> Delete)
@@ -443,7 +533,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
                 parse_mode=enums.ParseMode.HTML
             )
         except Exception as e:
-            if ERROR_MESSAGE == True:
+            if ERROR_Message == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
 
     elif "Audio" == msg_type:
