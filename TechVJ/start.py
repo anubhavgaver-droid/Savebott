@@ -1,6 +1,4 @@
-# Don't Remove Credit Tg - @VJ_Bots
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
+
 
 import os
 import asyncio 
@@ -28,6 +26,20 @@ def get_readable_file_size(size_bytes):
         size_bytes /= 1024.0
         i += 1
     return f"{size_bytes:.2f} {units[i]}"
+
+# Plan Limits Helper Function
+def get_plan_limits(plan):
+    plan = plan.lower()
+    if plan == "free":
+        return {"max_files": 40, "max_size_mb": 40, "max_total_mb": 500}
+    elif plan == "basic":
+        return {"max_files": 100, "max_size_mb": 100, "max_total_mb": 1500}
+    elif plan == "standard":
+        return {"max_files": 300, "max_size_mb": 500, "max_total_mb": 5000}
+    elif plan == "pro":
+        return {"max_files": "Unlimited", "max_size_mb": 4000, "max_total_mb": "Unlimited"}
+    else:
+        return {"max_files": 40, "max_size_mb": 40, "max_total_mb": 500}
 
 # Cancel Callback Handler
 @Client.on_callback_query(filters.regex("cancel_process"))
@@ -85,8 +97,8 @@ async def open_settings_callback(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex("back_home"))
 async def back_home_callback(client: Client, query: CallbackQuery):
     buttons = [
-        [InlineKeyboardButton("SETTINGS", callback_data="open_settings"), InlineKeyboardButton("DEVELOPER", url="https://t.me/kcxry")],
-        [InlineKeyboardButton('🔍 ꜱᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/pratilipifm0900'), InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/freestoryhubMR')]
+        [InlineKeyboardButton("SETTINGS", callback_data="open_settings"), InlineKeyboardButton("DEVELOPER", url="https://t.me/kingvj01")],
+        [InlineKeyboardButton('🔍 ꜱᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ', url='https://t.me/vj_bot_disscussion'), InlineKeyboardButton('🤖 ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ', url='https://t.me/vj_bots')]
     ]
     reply_markup = InlineKeyboardMarkup(buttons)
     try:
@@ -140,21 +152,68 @@ async def my_plan_command(client: Client, message: Message):
         user = await db.get_user_data(user_id)
     
     plan = user.get('plan', 'free').upper()
+    limits = get_plan_limits(plan)
+    
     expiry = user.get('plan_expiry', 0)
     daily_files = user.get('daily_files', 0)
-    used_mb = user.get('used_bytes', 0) / (1024 * 1024)
+    used_bytes = user.get('used_bytes', 0)
+    used_mb = used_bytes / (1024 * 1024)
     
     expiry_str = "Lifetime / Unlimited"
     if expiry > 0:
         expiry_str = datetime.datetime.fromtimestamp(expiry).strftime('%Y-%m-%d %H:%M:%S')
 
+    max_files_str = str(limits["max_files"]) if limits["max_files"] != "Unlimited" else "Unlimited"
+    max_data_str = f"{limits['max_total_mb']} MB" if limits["max_total_mb"] != "Unlimited" else "Unlimited"
+    
+    left_files_str = f"{limits['max_files'] - daily_files}" if limits["max_files"] != "Unlimited" else "Unlimited"
+
     text = (
-        f"<b>📦 Your Subscription Details:</b>\n\n"
-        f"🔹 **Current Plan:** {plan}\n"
-        f"📅 **Expiry:** {expiry_str}\n"
-        f"📂 **Files Downloaded Today:** {daily_files}\n"
-        f"📊 **Total Data Used:** {used_mb:.2f} MB\n\n"
+        f"<b>📦 Your Subscription & Usage Details:</b>\n\n"
+        f"🔹 <b>Current Plan:</b> {plan}\n"
+        f"📅 <b>Expiry:</b> {expiry_str}\n\n"
+        f"📂 <b>Files Used Today:</b> {daily_files} of {max_files_str}\n"
+        f"✨ <b>Files Left Today:</b> {left_files_str}\n"
+        f"📊 <b>Data Used:</b> {used_mb:.2f} MB of {max_data_str}\n"
+        f"📏 <b>Max File Size Limit:</b> {limits['max_size_mb']} MB per file\n\n"
         f"<i>Want to upgrade your plan? Click the button below to contact Admin!</i>"
+    )
+    
+    buttons = [
+        [InlineKeyboardButton("💬 Contact Admin to Buy Plan", url=f"https://t.me/{ADMIN_USERNAME}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(buttons)
+    await message.reply_text(text, reply_markup=reply_markup)
+
+
+@Client.on_message(filters.command("plans") & filters.private)
+async def plans_command(client: Client, message: Message):
+    text = (
+        "<b>💎 Available Subscription Plans:</b>\n\n"
+        "1️⃣ <b>FREE PLAN</b>\n"
+        "• Daily Files: 40 files/day\n"
+        "• Max File Size: 40 MB per file\n"
+        "• Total Data Limit: 500 MB\n"
+        "• Price: Free\n\n"
+        "2️⃣ <b>BASIC PLAN</b>\n"
+        "• Daily Files: 100 files/day\n"
+        "• Max File Size: 100 MB per file\n"
+        "• Total Data Limit: 1,500 MB (1.5 GB)\n"
+        "• Validity: 7 Days\n"
+        "• Price: <b>₹65</b>\n\n"
+        "3️⃣ <b>STANDARD PLAN</b>\n"
+        "• Daily Files: 300 files/day\n"
+        "• Max File Size: 500 MB per file\n"
+        "• Total Data Limit: 5,000 MB (5 GB)\n"
+        "• Validity: 15 Days\n"
+        "• Price: <b>₹150</b>\n\n"
+        "4️⃣ <b>PRO PLAN (UNLIMITED)</b>\n"
+        "• Daily Files: <b>Unlimited</b>\n"
+        "• Max File Size: <b>Unlimited</b> (Telegram Limit)\n"
+        "• Total Data Limit: <b>Unlimited</b>\n"
+        "• Validity: 30 Days (1 Month)\n"
+        "• Price: <b>₹300</b>\n\n"
+        "<i>Want to buy or upgrade a plan? Click the button below to contact Admin!</i>"
     )
     
     buttons = [
@@ -570,9 +629,18 @@ async def save(client: Client, message: Message):
                                 pass
                             await asyncio.sleep(1)
                 
-                uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
+                # Dynamic Summary Card with Exact Plan Limits
+                user_data = await db.get_user_data(message.from_user.id)
+                current_plan = user_data.get('plan', 'free') if user_data else 'free'
+                limits = get_plan_limits(current_plan)
+                
+                daily_files_count = user_data.get('daily_files', 0) if user_data else success_count
                 total_used_bytes = await db.get_used_bytes(message.from_user.id)
                 total_used_str = get_readable_file_size(total_used_bytes)
+                
+                uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
+                max_data_str = f"{limits['max_total_mb']} MB" if limits["max_total_mb"] != "Unlimited" else "Unlimited"
+                max_files_str = str(limits["max_files"]) if limits["max_files"] != "Unlimited" else "Unlimited"
 
                 complete_text = (
                     f"✅ **All done**\n\n"
@@ -581,8 +649,8 @@ async def save(client: Client, message: Message):
                     f"✅ Success ➔ {success_count}\n"
                     f"❌ Failed ➔ {failed_count}\n"
                     f"Uploaded now ➔ {uploaded_size_str}\n"
-                    f"Used today ➔ {total_used_str} of Unlimited\n"
-                    f"Left today ➔ Unlimited"
+                    f"Used today ➔ {total_used_str} of {max_data_str}\n"
+                    f"Files used ➔ {daily_files_count} of {max_files_str}"
                 )
                 thanks_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❤️ Thanks", callback_data="back_home")]])
                 try:
@@ -689,9 +757,18 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
                     pass
                 await asyncio.sleep(1)
 
-    uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
+    # Dynamic Summary Card with Exact Plan Limits
+    user_data = await db.get_user_data(message.from_user.id)
+    current_plan = user_data.get('plan', 'free') if user_data else 'free'
+    limits = get_plan_limits(current_plan)
+    
+    daily_files_count = user_data.get('daily_files', 0) if user_data else success_count
     total_used_bytes = await db.get_used_bytes(message.from_user.id)
     total_used_str = get_readable_file_size(total_used_bytes)
+    
+    uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
+    max_data_str = f"{limits['max_total_mb']} MB" if limits["max_total_mb"] != "Unlimited" else "Unlimited"
+    max_files_str = str(limits["max_files"]) if limits["max_files"] != "Unlimited" else "Unlimited"
 
     complete_text = (
         f"✅ **All done**\n\n"
@@ -700,8 +777,8 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
         f"✅ Success ➔ {success_count}\n"
         f"❌ Failed ➔ {failed_count}\n"
         f"Uploaded now ➔ {uploaded_size_str}\n"
-        f"Used today ➔ {total_used_str} of Unlimited\n"
-        f"Left today ➔ Unlimited"
+        f"Used today ➔ {total_used_str} of {max_data_str}\n"
+        f"Files used ➔ {daily_files_count} of {max_files_str}"
     )
     thanks_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❤️ Thanks", callback_data="back_home")]])
     try:
@@ -903,7 +980,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
                 parse_mode=enums.ParseMode.HTML
             )   
         except Exception as e:
-            if ERROR_MESSAGE == True:
+            if ERROR_Message == True:
                 await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
 
     elif "Photo" == msg_type:
