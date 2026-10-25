@@ -44,7 +44,29 @@ async def settings_command(client: Client, message: Message):
         reply_to_message_id=message.id
     )
 
-@Client.on_callback_query(filters.regex("^set_"))
+# Open Settings Menu from /start button
+@Client.on_callback_query(filters.regex("open_settings"))
+async def open_settings_callback(client: Client, query: CallbackQuery):
+    buttons = [
+        [InlineKeyboardButton("LOGIN", callback_data="set_login"), InlineKeyboardButton("LOGOUT", callback_data="set_logout")],
+        [InlineKeyboardButton("SET CHANNEL", callback_data="set_chat"), InlineKeyboardButton("REMOVE CHANNEL", callback_data="rem_chat")],
+        [InlineKeyboardButton("ADD CAPTION", callback_data="set_cap"), InlineKeyboardButton("REMOVE CAPTION", callback_data="rem_cap")],
+        [InlineKeyboardButton("SET THUMB", callback_data="set_thb"), InlineKeyboardButton("REMOVE THUMB", callback_data="rem_thb")]
+    ]
+    reply_markup = InlineKeyboardMarkup(buttons)
+    try:
+        await query.message.edit_text(
+            "<b>CUSTOMIZE YOUR SETTINGS AS PER YOUR NEEDS.</b>",
+            reply_markup=reply_markup
+        )
+    except:
+        await query.message.reply_text(
+            "<b>CUSTOMIZE YOUR SETTINGS AS PER YOUR NEEDS.</b>",
+            reply_markup=reply_markup
+        )
+    await query.answer()
+
+@Client.on_callback_query(filters.regex("^(set_|rem_)"))
 async def settings_callback(client: Client, query: CallbackQuery):
     data = query.data
     user_id = query.from_user.id
@@ -64,7 +86,7 @@ async def settings_callback(client: Client, query: CallbackQuery):
         await db.set_caption(user_id, None)
         await query.answer("Caption Removed!", show_alert=True)
     elif data == "set_thb":
-        await query.message.reply_text("Please send an image to set it as your thumbnail.")
+        await query.message.reply_text("Please reply to an image with `/set_thumb` to set your thumbnail.")
     elif data == "rem_thb":
         await db.set_thumbnail(user_id, None)
         await query.answer("Thumbnail Removed!", show_alert=True)
