@@ -329,7 +329,7 @@ async def save(client: Client, message: Message):
             try:
                 await acc.disconnect()
             except:
-                pass                v
+                pass                
         batch_temp.IS_BATCH[message.from_user.id] = True
 
 
@@ -434,7 +434,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             ph_path = None
 
         duration = getattr(msg.audio, "duration", 0)
-        performer = "kcxry"  # Unknown artist ki jagah kcxry set kar diya gaya hai
+        performer = "kcxry"
         title = getattr(msg.audio, "title", msg.document.file_name if msg.document else "Audio File")
 
         try:
