@@ -8,10 +8,11 @@ import pyrogram
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery 
-from config import API_ID, API_HASH, ERROR_MESSAGE, LOGIN_SYSTEM, STRING_SESSION, CHANNEL_ID, WAITING_TIME
+from config import API_ID, API_HASH, ERROR_MESSAGE, LOGIN_SYSTEM, STRING_SESSION, CHANNEL_ID, WAITING_TIME, ADMINS, ADMIN_USERNAME
 from database.db import db
 from TechVJ.strings import HELP_TXT
 from bot import TechVJUser
+import datetime
 
 class batch_temp(object):
     IS_BATCH = {}
@@ -58,7 +59,6 @@ async def settings_command(client: Client, message: Message):
         reply_to_message_id=message.id
     )
 
-# Open Settings Menu from /start button
 @Client.on_callback_query(filters.regex("open_settings"))
 async def open_settings_callback(client: Client, query: CallbackQuery):
     buttons = [
@@ -82,7 +82,6 @@ async def open_settings_callback(client: Client, query: CallbackQuery):
         )
     await query.answer()
 
-# Back to Home / Welcome Message Callback
 @Client.on_callback_query(filters.regex("back_home"))
 async def back_home_callback(client: Client, query: CallbackQuery):
     buttons = [
@@ -131,7 +130,86 @@ async def settings_callback(client: Client, query: CallbackQuery):
     await query.answer()
 
 
-# ==================== THUMBNAIL COMMANDS ====================
+# ==================== PLAN & SUBSCRIPTION COMMANDS ====================
+@Client.on_message(filters.command("myplan") & filters.private)
+async def my_plan_command(client: Client, message: Message):
+    user_id = message.from_user.id
+    user = await db.get_user_data(user_id)
+    if not user:
+        await db.add_user(user_id, message.from_user.first_name)
+        user = await db.get_user_data(user_id)
+    
+    plan = user.get('plan', 'free').upper()
+    expiry = user.get('plan_expiry', 0)
+    daily_files = user.get('daily_files', 0)
+    used_mb = user.get('used_bytes', 0) / (1024 * 1024)
+    
+    expiry_str = "Lifetime / Unlimited"
+    if expiry > 0:
+        expiry_str = datetime.datetime.fromtimestamp(expiry).strftime('%Y-%m-%d %H:%M:%S')
+
+    text = (
+        f"<b>📦 Your Subscription Details:</b>\n\n"
+        f"🔹 **Current Plan:** {plan}\n"
+        f"📅 **Expiry:** {expiry_str}\n"
+        f"📂 **Files Downloaded Today:** {daily_files}\n"
+        f"📊 **Total Data Used:** {used_mb:.2f} MB\n\n"
+        f"<i>Want to upgrade your plan? Click the button below to contact Admin!</i>"
+    )
+    
+    buttons = [
+        [InlineKeyboardButton("💬 Contact Admin to Buy Plan", url=f"https://t.me/{ADMIN_USERNAME}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(buttons)
+    await message.reply_text(text, reply_markup=reply_markup)
+
+
+@Client.on_message(filters.command("setplan") & filters.private)
+async def set_plan_admin(client: Client, message: Message):
+    if message.from_user.id != ADMINS:
+        return await message.reply("❌ You are not authorized to use this command!")
+    
+    if len(message.command) < 3:
+        return await message.reply("Usage: `/setplan <user_id> <free/basic/standard/pro>`")
+    
+    try:
+        target_user_id = int(message.command[1])
+        plan_type = message.command[2].lower()
+    except ValueError:
+        return await message.reply("❌ Invalid User ID!")
+
+    if plan_type not in ["free", "basic", "standard", "pro"]:
+        return await message.reply("❌ Invalid plan! Choose: free, basic, standard, pro")
+
+    if plan_type == "basic":
+        validity = 7 * 86400
+        price = "₹65 (7 Days)"
+    elif plan_type == "standard":
+        validity = 15 * 86400
+        price = "₹150 (15 Days)"
+    elif plan_type == "pro":
+        validity = 30 * 86400
+        price = "₹300 (30 Days / 1 Month)"
+    else:
+        validity = 0
+        price = "Free"
+
+    await db.set_user_plan(target_user_id, plan_type, validity)
+    await message.reply(f"✅ Successfully set plan **{plan_type.upper()}** for user `{target_user_id}`!")
+    
+    try:
+        await client.send_message(
+            target_user_id,
+            f"🎉 **Congratulations! Your plan has been upgraded.**\n\n"
+            f"🔹 **New Plan:** {plan_type.upper()}\n"
+            f"💰 **Package:** {price}\n\n"
+            f"Enjoy your enhanced limits! Check /myplan for details."
+        )
+    except:
+        pass
+
+
+# ==================== THUMBNAIL, CAPTION & ARTIST COMMANDS ====================
 @Client.on_message(filters.command("set_thumb") & filters.private)
 async def set_thumb(client, message):
     if not message.reply_to_message or not message.reply_to_message.photo:
@@ -153,7 +231,6 @@ async def del_thumb(client, message):
     await message.reply("Thumbnail Deleted Successfully!")
 
 
-# ==================== CAPTION COMMANDS ====================
 @Client.on_message(filters.command("set_caption") & filters.private)
 async def set_caption(client, message):
     if len(message.command) < 2:
@@ -175,7 +252,6 @@ async def del_caption(client, message):
     await message.reply("Custom Caption Deleted Successfully!")
 
 
-# ==================== ARTIST COMMANDS ====================
 @Client.on_message(filters.command("set_artist") & filters.private)
 async def set_artist_cmd(client, message):
     if len(message.command) < 2:
@@ -190,7 +266,6 @@ async def del_artist_cmd(client, message):
     await message.reply("Custom Artist Deleted Successfully!")
 
 
-# ==================== CHAT / CHANNEL COMMANDS ====================
 @Client.on_message(filters.command("setchat") & filters.private)
 async def set_chat(client, message):
     if len(message.command) < 2:
@@ -208,11 +283,10 @@ async def rem_chat(client, message):
     await message.reply("Target Channel Removed!")
 
 
-# start command with Payload & dlbot Support
+# ==================== START & BATCH HANDLERS ====================
 @Client.on_message(filters.command(["start", "dlbot"]))
 async def send_start(client: Client, message: Message):
-    if not await db.is_user_exist(message.from_user.id):
-        await db.add_user(message.from_user.id, message.from_user.first_name)
+    await db.add_user(message.from_user.id, message.from_user.first_name)
     
     if len(message.command) > 1:
         extracted_link = message.command[1]
@@ -234,29 +308,20 @@ async def send_start(client: Client, message: Message):
     return
 
 
-# help command
 @Client.on_message(filters.command(["help"]))
 async def send_help(client: Client, message: Message):
-    await client.send_message(
-        chat_id=message.chat.id, 
-        text=f"{HELP_TXT}"
-    )
+    await client.send_message(chat_id=message.chat.id, text=f"{HELP_TXT}")
 
-# cancel command
+
 @Client.on_message(filters.command(["cancel"]))
 async def send_cancel(client: Client, message: Message):
     batch_temp.IS_BATCH[message.from_user.id] = True
-    await client.send_message(
-        chat_id=message.chat.id, 
-        text="**Batch Successfully Cancelled.**"
-    )
+    await client.send_message(chat_id=message.chat.id, text="**Batch Successfully Cancelled.**")
 
 
-# ==================== /batch COMMAND HANDLER ====================
 @Client.on_message(filters.command("batch") & filters.private)
 async def batch_command(client: Client, message: Message):
-    if not await db.is_user_exist(message.from_user.id):
-        await db.add_user(message.from_user.id, message.from_user.first_name)
+    await db.add_user(message.from_user.id, message.from_user.first_name)
 
     if batch_temp.IS_BATCH.get(message.from_user.id) == False:
         return await message.reply_text("**One Task Is Already Processing. Wait For Complete It. If You Want To Cancel This Task Then Use - /cancel**")
@@ -505,8 +570,10 @@ async def save(client: Client, message: Message):
                                 pass
                             await asyncio.sleep(1)
                 
-                # Final Summary Card with Arrows
                 uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
+                total_used_bytes = await db.get_used_bytes(message.from_user.id)
+                total_used_str = get_readable_file_size(total_used_bytes)
+
                 complete_text = (
                     f"✅ **All done**\n\n"
                     f"Saved ➔ {success_count} of {total_files}\n\n"
@@ -514,7 +581,7 @@ async def save(client: Client, message: Message):
                     f"✅ Success ➔ {success_count}\n"
                     f"❌ Failed ➔ {failed_count}\n"
                     f"Uploaded now ➔ {uploaded_size_str}\n"
-                    f"Used today ➔ {uploaded_size_str} of Unlimited\n"
+                    f"Used today ➔ {total_used_str} of Unlimited\n"
                     f"Left today ➔ Unlimited"
                 )
                 thanks_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❤️ Thanks", callback_data="back_home")]])
@@ -622,8 +689,10 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
                     pass
                 await asyncio.sleep(1)
 
-    # Final Summary Card with Arrows
     uploaded_size_str = get_readable_file_size(batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0))
+    total_used_bytes = await db.get_used_bytes(message.from_user.id)
+    total_used_str = get_readable_file_size(total_used_bytes)
+
     complete_text = (
         f"✅ **All done**\n\n"
         f"Saved ➔ {success_count} of {total_files}\n\n"
@@ -631,7 +700,7 @@ async def process_batch_range(client: Client, message: Message, link_text: str, 
         f"✅ Success ➔ {success_count}\n"
         f"❌ Failed ➔ {failed_count}\n"
         f"Uploaded now ➔ {uploaded_size_str}\n"
-        f"Used today ➔ {uploaded_size_str} of Unlimited\n"
+        f"Used today ➔ {total_used_str} of Unlimited\n"
         f"Left today ➔ Unlimited"
     )
     thanks_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❤️ Thanks", callback_data="back_home")]])
@@ -654,6 +723,23 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
     msg_type = get_message_type(msg)
     if not msg_type: return 
     
+    # --- PLAN & LIMIT CHECK BEFORE DOWNLOADING ---
+    file_size = 0
+    if msg.document:
+        file_size = msg.document.file_size
+    elif msg.video:
+        file_size = msg.video.file_size
+    elif msg.audio:
+        file_size = msg.audio.file_size
+    elif msg.photo:
+        file_size = 300000
+
+    allowed, err_msg = await db.check_and_update_limit(message.from_user.id, file_size)
+    if not allowed:
+        await client.send_message(message.chat.id, err_msg, reply_to_message_id=message.id)
+        batch_temp.IS_BATCH[message.from_user.id] = True
+        return
+
     # Custom Chat / Target Channel Check
     user_chat_id = await db.get_chat(message.from_user.id)
     if user_chat_id:
@@ -689,9 +775,10 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
     try:
         file = await acc.download_media(msg)
         if file and os.path.exists(file):
-            file_size = os.path.getsize(file)
+            f_size = os.path.getsize(file)
             current_total = batch_temp.UPLOADED_SIZE.get(message.from_user.id, 0)
-            batch_temp.UPLOADED_SIZE[message.from_user.id] = current_total + file_size
+            batch_temp.UPLOADED_SIZE[message.from_user.id] = current_total + f_size
+            await db.add_used_bytes(message.from_user.id, f_size)
     except Exception as e:
         if ERROR_MESSAGE == True:
             await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML) 
@@ -711,7 +798,6 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid, s
             pass
         await asyncio.sleep(0.3)
 
-    # Custom Caption, Thumbnail & Artist Handling
     custom_caption = await db.get_caption(message.from_user.id)
     custom_thumb = await db.get_thumbnail(message.from_user.id)
     custom_artist = await db.get_artist(message.from_user.id)
