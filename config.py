@@ -9,12 +9,12 @@ LOGIN_SYSTEM = bool(os.environ.get('LOGIN_SYSTEM', True)) # True or False
 
 if LOGIN_SYSTEM == False:
     # if login system is False then fill your tg account session below 
-    STRING_SESSION = os.environ.get("STRING_SESSION", "")
+    STRING_SESSION = os.environ.get("STRING_SESSION", "BQJGR_0AiZju-oXhEUl1X0RMYwqTWWYrusBnugBLu6vdyxtxCZVFo-VSdPXvbmMr39WDc7ViZnGIQpMslQsNKVC147SShOUIboBokInO0Ec7iVV-106nn73segROEEGDkROV0MruK-_NkdvJW4iO9OCP8jklYIQ9iRul7771Fd7Pzz0M325k4zGry8q47vDszhIbi3drK7y4DG50E0So5VNvaGMHX9F1VQYsZ45aRoDG_RnO0ew8UzieXRwqYMYkT9AZy_qOiAygIPrF4bn8AukCEgRemNO1WkiEoEVxCir3g4iFXBFsUsT3z0MZpixAyH9xMcUsFHeBZJYzR1CLe9gSAcohrwAAAAFflE-jAA")
 else:
     STRING_SESSION = None
 
 # Bot token @Botfather
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8305985325:AAEeNzWRLLbBuB4SSGnxWIGC_GTTiAujNVc")
 
 # Your API ID from my.telegram.org
 API_ID = int(os.environ.get("API_ID", ""))
@@ -32,7 +32,7 @@ ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "KCXRY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
 # Your Mongodb Database Url
-DB_URI = os.environ.get("DB_URI", "") 
+DB_URI = os.environ.get("DB_URI", "mongodb+srv://Anubhav09:kalu1234@anubhav09.ljn6xdp.mongodb.net/?appName=Anubhav09") 
 DB_NAME = os.environ.get("DB_NAME", "vjsavecontentbot")
 
 # Increase time as much as possible to avoid floodwait, spamming and tg account ban issues.
