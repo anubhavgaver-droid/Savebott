@@ -17,13 +17,13 @@ else:
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8305985325:AAEeNzWRLLbBuB4SSGnxWIGC_GTTiAujNVc")
 
 # Your API ID from my.telegram.org
-API_ID = int(os.environ.get("API_ID", ""))
+API_ID = int(os.environ.get("API_ID", "38160381"))
 
 # Your API Hash from my.telegram.org
-API_HASH = os.environ.get("API_HASH", "")
+API_HASH = os.environ.get("API_HASH", "9f7879d8793fd4bfd887d023cc1d3872")
 
 # Your Owner / Admin Id For Broadcast 
-ADMINS = int(os.environ.get("ADMINS", ""))
+ADMINS = int(os.environ.get("ADMINS", "5898522531"))
 
 # Admin Username for Plan Purchase Contact Button (Yahan apna username likhein @ ke bina)
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "KCXRY")
